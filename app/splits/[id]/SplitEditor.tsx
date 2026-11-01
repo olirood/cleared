@@ -11,7 +11,7 @@ import Panel, { Toast } from '../../components/Panel';
 import Letter from '../../components/Letter';
 import { ProfilePanel } from '../../directorio/Directory';
 import WorkForm from '../WorkForm';
-import { addParticipant, decide, equalize, issueLink, newVersion, removeParticipant, sendSplit, updateParticipant } from '../actions';
+import { addParticipant, decide, equalize, issueLink, newVersion, removeParticipant, resendFinal, sendSplit, updateParticipant } from '../actions';
 
 type Log = { id: number; action: string; detail: Record<string, unknown> | null; at: string; entity_id: string; workspace_id: string | null };
 type Props = {
@@ -24,7 +24,7 @@ type Props = {
 const ACTIONS: Record<string, string> = {
   created: 'Split creado', sent: 'Cerrado y enviado a firma', approved: 'Aprobado por', changes_requested: 'Cambio pedido por',
   link_issued: 'Enlace de firma generado', signed: 'Firmó', completed: 'Firmado por todas las partes',
-  change_requested: 'Un firmante pidió un cambio', new_version: 'Versión nueva creada',
+  change_requested: 'Un firmante pidió un cambio', new_version: 'Versión nueva creada', final_sent: 'Copia final reenviada por correo',
 };
 
 export default function SplitEditor(props: Props) {
@@ -68,7 +68,7 @@ export default function SplitEditor(props: Props) {
   if (draft) {
     if (!participants.length) problems.push('Agrega a las personas que escribieron la canción.');
     else if (sum !== 10000) problems.push(sum > 10000 ? `Sobran ${fmtPct(sum - 10000)} %.` : `Faltan ${fmtPct(10000 - sum)} %.`);
-    participants.forEach((p) => { const pe = person(p.person_id); const m = pe ? missing(pe) : ['perfil']; if (m.length) problems.push(`A ${pe?.legal_name ?? 'un participante'} le falta ${m.join(', ')}.`); });
+    participants.forEach((p) => { const pe = person(p.person_id); const m = pe ? missing(pe) : ['perfil']; if (pe && !pe.email) m.push('correo'); if (m.length) problems.push(`A ${pe?.legal_name ?? 'un participante'} le falta ${m.join(', ')}.`); });
     reps.forEach((ws) => { if (apState(ws).state !== 'ok') problems.push(`Falta que ${wsName(ws)} apruebe.`); });
   }
 
@@ -163,7 +163,7 @@ export default function SplitEditor(props: Props) {
                 const snap = p.snapshot;
                 const nameShown = snap?.legal_name ?? pe?.legal_name ?? 'Perfil no visible';
                 const facts = [snap?.pro ?? pe?.pro, (snap?.ipi ?? pe?.ipi) && `IPI ${snap?.ipi ?? pe?.ipi}`, snap?.publisher ?? pe?.publishers?.name ?? 'Sin editora'].filter(Boolean).join(' · ');
-                const miss = draft && pe ? missing(pe) : [];
+                const miss = draft && pe ? [...missing(pe), ...(pe.email ? [] : ['correo'])] : [];
                 const rep = pe?.represented_by && pe.represented_by !== work.workspace_id ? pe.represented_by : null;
                 const canEditRow = draft && isOwner;
                 const canFix = pe && (writer(pe.owner_workspace_id) || writer(pe.represented_by));
@@ -309,6 +309,9 @@ export default function SplitEditor(props: Props) {
             <span>Enviado {fmtDateTime(current.sent_at)}{current.completed_at && ` · completado ${fmtDateTime(current.completed_at)}`}</span>
             {current.content_sha256 && <span className="mono" style={{ overflowWrap: 'anywhere' }}>SHA-256 {current.content_sha256}</span>}
           </div>
+          {current.status === 'signed' && (isOwner || reps.some((w) => writer(w))) && (
+            <div className="row" style={{ marginTop: 12 }}><button className="btn small" disabled={busy} onClick={() => run(() => resendFinal(current.id), 'Copia final enviada a todos')}>Reenviar copia final por correo</button></div>
+          )}
         </section>
       )}
 

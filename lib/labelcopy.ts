@@ -116,7 +116,7 @@ export const SECTIONS: { key: keyof LCDoc; title: string; heads: string[] }[] = 
 
 export async function lcPdf(d: LCDoc): Promise<Blob> {
   const { jsPDF } = await import('jspdf');
-  const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+  const doc = new jsPDF({ unit: 'pt', format: 'letter', compress: true });
   const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 48, CW = W - 2 * M;
   let y = 56;
   const ensure = (h: number) => { if (y + h > H - 48) { doc.addPage(); y = 56; return true; } return false; };

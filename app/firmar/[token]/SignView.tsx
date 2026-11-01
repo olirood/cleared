@@ -4,12 +4,15 @@ import { useRouter } from 'next/navigation';
 import Letter from '../../components/Letter';
 import { downloadBlob, fileSafe, letterPdf, rowFrom, type LetterModel } from '@/lib/letter';
 import { fmtPct, fmtDateTime, ROLES } from '@/lib/splits';
-import { requestChange, sign, type SigningView } from './actions';
+import { requestChange, requestCode, sign, type SigningView } from './actions';
 
 export default function SignView({ token, view }: { token: string; view: SigningView }) {
   const router = useRouter();
   const [name, setName] = useState('');
   const [consent, setConsent] = useState(false);
+  const [code, setCode] = useState('');
+  const [codeSent, setCodeSent] = useState(false);
+  const [info, setInfo] = useState('');
   const [err, setErr] = useState('');
   const [mode, setMode] = useState<'sign' | 'change' | 'sent'>('sign');
   const [note, setNote] = useState('');
@@ -42,7 +45,7 @@ export default function SignView({ token, view }: { token: string; view: Signing
       </section>
 
       {view.my_status === 'signed' ? (
-        <div className="banner info"><span><b>Ya firmaste</b> el {fmtDateTime(view.signed_at)}. {a.status === 'signed' ? 'Firmaron todas las partes.' : 'Cuando firmen todos, el split queda cerrado.'}</span>
+        <div className="banner info"><span><b>Ya firmaste</b> el {fmtDateTime(view.signed_at)}. {a.status === 'signed' ? 'Firmaron todas las partes; te mandamos la copia final a tu correo.' : 'Cuando firmen todos, te llega la copia final a tu correo.'}</span>
           <button className="btn" onClick={pdf} disabled={pending}>Descargar copia</button></div>
       ) : closed ? (
         <div className="banner crit"><span>{view.my_status === 'expired' ? 'Este enlace caducó. Pide uno nuevo a quien te lo mandó.' : 'Esta versión del split ya no está vigente. Te mandarán un enlace nuevo.'}</span></div>
@@ -53,8 +56,22 @@ export default function SignView({ token, view }: { token: string; view: Signing
       {!closed && view.my_status === 'pending' && mode === 'sign' && (
         <section className="card glass">
           <header><h2>Firmar</h2></header>
-          <form className="stack" onSubmit={(e) => { e.preventDefault(); setErr(''); start(async () => { const r = await sign(token, name, consent); if (r.error) setErr(r.error); else router.refresh(); }); }}>
-            <label className="f">Escribe tu nombre completo
+          <form className="stack" onSubmit={(e) => { e.preventDefault(); setErr(''); start(async () => { const r = await sign(token, code, name, consent); if (r.error) setErr(r.error); else router.refresh(); }); }}>
+            <div className="code-step">
+              <div>
+                <b>1. Pide tu código</b>
+                <p className="muted small">Te lo mandamos a {view.email_hint ?? 'tu correo'}. Vence en 10 minutos.</p>
+              </div>
+              <button type="button" className="btn" disabled={pending}
+                onClick={() => { setErr(''); setInfo(''); start(async () => { const r = await requestCode(token); if (r.error) setErr(r.error); else { setCodeSent(true); setInfo('Listo, revisa tu correo (y la carpeta de spam).'); } }); }}>
+                {codeSent ? 'Mandar otro' : 'Mandar código'}</button>
+            </div>
+            {info && <p className="form-msg ok" role="status">{info}</p>}
+            <label className="f">2. Código de 6 dígitos
+              <input type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6} className="code-in" value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} disabled={!codeSent} />
+            </label>
+            <label className="f">3. Escribe tu nombre completo
               <span className="hint">Tal como aparece en la carta: {me.legal_name}</span>
               <input type="text" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required />
             </label>
@@ -65,7 +82,7 @@ export default function SignView({ token, view }: { token: string; view: Signing
             {err && <p className="form-msg crit" role="alert">{err}</p>}
             <div className="row spread">
               <button type="button" className="btn ghost" onClick={() => { setErr(''); setMode('change'); }}>Algo está mal: pedir un cambio</button>
-              <button className="btn primary" disabled={pending || !consent || !name.trim()}>{pending ? 'Firmando…' : 'Firmar'}</button>
+              <button className="btn primary" disabled={pending || !consent || !name.trim() || code.length !== 6}>{pending ? 'Firmando…' : 'Firmar'}</button>
             </div>
           </form>
         </section>

@@ -3,6 +3,8 @@ import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 import { supabaseServer } from '@/lib/supabase/server';
 import { ROLES, canonical, equalShares, type Snapshot } from '@/lib/splits';
+import { mailConfigured } from '@/lib/mail';
+import { sendFinalDocument } from '@/lib/finalMail';
 
 export type Result = { error?: string; id?: string; links?: Record<string, string>; link?: string };
 type PgErr = { code?: string; message?: string };
@@ -214,6 +216,9 @@ export async function sendSplit(agreementId: string): Promise<Result> {
     .select('id, role, share_bp, credits, position, people(legal_name, credit_name, pro, pro_member_no, ipi, email, phone, nationality, publishers(name, ipi))')
     .eq('agreement_id', agreementId).order('position');
   if (!ps?.length) return { error: 'Agrega a los participantes.' };
+  if (!mailConfigured()) return { error: 'Falta configurar el correo de Cleared: sin él nadie podría recibir su código para firmar.' };
+  const noMail = ps.filter((p) => !(p.people as unknown as { email: string | null } | null)?.email).map((p) => (p.people as unknown as { legal_name: string } | null)?.legal_name ?? 'alguien');
+  if (noMail.length) return { error: `Falta el correo de ${noMail.join(', ')}. Ahí le llega su código para firmar y la copia final.` };
   const { data: ws } = await sb.from('workspaces').select('letter_template').eq('id', a.workspace_id).single();
   const template = ws?.letter_template || 'generic';
 
@@ -273,4 +278,18 @@ export async function newVersion(agreementId: string): Promise<Result> {
   await log(sb, a.workspace_id, next.id, 'new_version', { from: a.version });
   refresh(a.work_id);
   return { id: next.id };
+}
+
+// Reenvía a todos los firmantes el PDF final (si el correo falló al completarse)
+export async function resendFinal(agreementId: string): Promise<Result> {
+  const { sb } = await ctx();
+  const a = await agreementCtx(sb, agreementId);   // la regla de la base confirma que puedes ver este split
+  if (!a) return { error: 'No se encontró el split.' };
+  if (a.status !== 'signed') return { error: 'El split aún no está firmado por todos.' };
+  if (!mailConfigured()) return { error: 'El correo de Cleared no está configurado.' };
+  const { data, error } = await sb.rpc('completed_document_for', { agreement: agreementId, server_key: process.env.CLEARED_SERVER_KEY });
+  if (error || !data) return { error: 'No se pudo armar el documento.' };
+  try { await sendFinalDocument(data); } catch { return { error: 'No se pudo mandar el correo.' }; }
+  await log(sb, a.workspace_id, agreementId, 'final_sent');
+  return {};
 }

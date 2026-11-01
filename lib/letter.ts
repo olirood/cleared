@@ -49,9 +49,9 @@ async function logoData(): Promise<string | null> {
   } catch { return null; }
 }
 
-export async function letterPdf(m: LetterModel): Promise<Blob> {
+export async function letterPdf(m: LetterModel, logoOverride?: string | null): Promise<Blob> {
   const { jsPDF } = await import('jspdf');
-  const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+  const doc = new jsPDF({ unit: 'pt', format: 'letter', compress: true });
   const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 72, CW = W - 2 * M;
   let y = 72;
   const ensure = (h: number) => { if (y + h > H - 70) { doc.addPage(); y = 72; return true; } return false; };
@@ -74,8 +74,8 @@ export async function letterPdf(m: LetterModel): Promise<Blob> {
 
   // membrete
   const logoW = 150, logoH = logoW * (326 / 760);
-  const logo = m.template === 'apollo' ? await logoData() : null;
-  if (logo) doc.addImage(logo, 'PNG', (W - logoW) / 2, 44, logoW, logoH);
+  const logo = m.template === 'apollo' ? (logoOverride !== undefined ? logoOverride : await logoData()) : null;
+  if (logo) doc.addImage(logo, 'PNG', (W - logoW) / 2, 44, logoW, logoH, 'apollo-logo', 'FAST');
   else {
     doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setCharSpace(2);
     doc.text(m.workspace.toUpperCase(), W / 2, 44 + logoH / 2 + 4, { align: 'center' }); doc.setCharSpace(0);

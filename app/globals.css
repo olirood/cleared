@@ -450,3 +450,5 @@ input[type="url"] { width: 100%; height: var(--h); background: var(--field); bor
 .folder-grid.even { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (max-width: 860px) { .folder-grid.even { grid-template-columns: 1fr; } }
 .credit-in { display: block; }
+.code-step { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 14px; border-radius: var(--r-md); background: var(--sunk); }
+.code-in { font-family: var(--font-mono) !important; font-size: 1.3rem !important; letter-spacing: .3em; max-width: 200px; height: 48px !important; text-align: center; }
