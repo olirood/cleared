@@ -167,3 +167,17 @@ create policy audit_read on public.audit_events for select to authenticated
 
 -- evidencia de firma visible para quien ve el split (el enlace sigue oculto)
 grant select (typed_name, ip, user_agent) on public.signatures to authenticated;
+
+-- funciones internas: quien no tiene sesión no las puede llamar
+revoke execute on function public.participants_sig(uuid) from public, anon;
+grant execute on function public.participants_sig(uuid) to authenticated;
+revoke execute on function public.representing_workspaces(uuid) from public, anon;
+grant execute on function public.representing_workspaces(uuid) to authenticated;
+revoke execute on function public.represents_someone_in(uuid) from public, anon;
+grant execute on function public.represents_someone_in(uuid) to authenticated;
+revoke execute on function public.can_see_work(uuid) from public, anon;
+grant execute on function public.can_see_work(uuid) to authenticated;
+revoke execute on function public.rec_member(uuid) from public, anon;
+grant execute on function public.rec_member(uuid) to authenticated;
+revoke execute on function public.rec_writer(uuid) from public, anon;
+grant execute on function public.rec_writer(uuid) to authenticated;

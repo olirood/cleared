@@ -11,7 +11,8 @@ Splits, label copy y firmas para el expediente de cada canción. Piloto privado:
 - **Directorio compartido** (`people`, `publishers`): un perfil por persona para todos los espacios. Lo edita solo el espacio que lo creó o el que lo representa.
 - **Obra y grabación separadas**: el split vive en la obra (`works`); ISRC, label copy, créditos y archivos viven en la grabación (`recordings`). Una obra puede tener versión original, acústica y remix.
 - **Splits versionados**: una sola versión vigente por obra. No se envía a firma si no suma 100 % o si falta la aprobación vigente de un espacio representante. Enviado, ya no se edita: se crea otra versión.
-- **Firmas**: el link de firma se guarda solo como huella y nadie lo puede leer desde la app.
+- **Firmas**: cada firmante recibe un enlace único (30 días) sin necesidad de cuenta. La base guarda solo la huella del enlace; firmar, ver la carta y pedir cambios pasa por funciones de la base (`signing_view`, `sign_split`, `request_split_change`). Se registra nombre escrito, consentimiento, fecha, IP y navegador.
+- **Archivos**: audio y video solo como enlace; portada (original y miniatura) y documentos PDF en el almacén privado `cleared`, en carpetas por espacio.
 - **Bitácora**: solo se agrega, nunca se edita.
 
 Todas las tablas tienen seguridad por fila (RLS).
@@ -20,7 +21,8 @@ Todas las tablas tienen seguridad por fila (RLS).
 
 Next.js en Cloudflare Workers (OpenNext). Acceso con correo y contraseña; cada quien cambia la suya en **Cuenta**.
 
-- `app/` páginas · `lib/supabase/` conexión · `middleware.ts` renueva la sesión y manda a `/login` a quien no la tenga.
+- `app/` páginas: inicio, `tracks` (carpeta y label copy), `splits`, `directorio`, `cuenta` y `firmar/[token]` (pública).
+- `lib/` reglas compartidas (splits, carta, label copy, tracks) · `middleware.ts` renueva la sesión y manda a `/login` a quien no la tenga.
 - `.env.production` solo trae valores públicos. La clave secreta y la contraseña de la base nunca van al repo.
 - El sitio pide a los buscadores no indexarlo y no se puede incrustar en otras páginas.
 

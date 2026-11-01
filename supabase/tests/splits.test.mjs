@@ -66,3 +66,4 @@ await as(U.oli, `update split_agreements set status='void' where id=$1`, [ag2]);
 await expectErr('No se firma una versión anulada', () => as(null, `select sign_split($1,'Kevin Cuadras','v1','','t')`, [h('tok-otra')]));
 await as(U.oli, `insert into split_agreements (work_id, version) values ($1,2)`, [w2]);
 ok('Se crea la versión 2 después de anular');
+await expectErr('Sin sesión no se leen huellas de participantes', () => as(null, `select participants_sig($1)`, [ag]));
