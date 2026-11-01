@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { signOut } from '../actions';
+import Tabs from './Tabs';
 
 export default function TopBar({ name }: { name: string }) {
   const initials = name.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase() || '·';
@@ -9,7 +10,7 @@ export default function TopBar({ name }: { name: string }) {
         <Link href="/" className="brand" style={{ textDecoration: 'none' }}>
           <span className="mark">C</span><b className="wordmark">Cleared</b>
         </Link>
-        <span />
+        <Tabs />
         <div className="bar-end">
           <Link href="/cuenta" className="btn ghost small">Cuenta</Link>
           <form action={signOut}><button className="btn ghost small">Salir</button></form>

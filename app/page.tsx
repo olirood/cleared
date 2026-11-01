@@ -3,7 +3,7 @@ import { supabaseServer } from '@/lib/supabase/server';
 import TopBar from './components/TopBar';
 
 const ROLE: Record<string, string> = { owner: 'Dueño', admin: 'Administración', operator: 'Operación', viewer: 'Solo lectura' };
-const NEXT = ['Directorio', 'Tracks y carpetas', 'Splits y aprobaciones', 'Label copy', 'Firmas'];
+const NEXT: [string, boolean][] = [['Directorio', true], ['Tracks y carpetas', false], ['Splits y aprobaciones', false], ['Label copy', false], ['Firmas', false]];
 
 type Row = { role: string; display_name: string | null; workspaces: { name: string; slug: string; letter_template: string } | null };
 
@@ -53,7 +53,7 @@ export default async function Home() {
         <section className="card glass">
           <header><h2>En camino</h2><span className="pill">Se pasan del demo uno por uno</span></header>
           <ul className="todo">
-            {NEXT.map((n) => <li key={n}><span>{n}</span><span className="pill">Pendiente</span></li>)}
+            {NEXT.map(([n, ready]) => <li key={n}><span>{n}</span>{ready ? <span className="pill ok">Listo</span> : <span className="pill">Pendiente</span>}</li>)}
           </ul>
         </section>
       </main>
