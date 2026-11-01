@@ -3,7 +3,7 @@ import { supabaseServer } from '@/lib/supabase/server';
 import TopBar from './components/TopBar';
 
 const ROLE: Record<string, string> = { owner: 'Dueño', admin: 'Administración', operator: 'Operación', viewer: 'Solo lectura' };
-const NEXT: [string, boolean][] = [['Directorio', true], ['Tracks y carpetas', false], ['Splits y aprobaciones', false], ['Label copy', false], ['Firmas', false]];
+const NEXT: [string, boolean][] = [['Directorio', true], ['Tracks y carpetas', true], ['Splits y aprobaciones', false], ['Label copy', false], ['Firmas', false]];
 
 type Row = { role: string; display_name: string | null; workspaces: { name: string; slug: string; letter_template: string } | null };
 
