@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-const TABS = [['/', 'Inicio'], ['/tracks', 'Tracks'], ['/directorio', 'Directorio']] as const;
+const TABS = [['/', 'Inicio'], ['/tracks', 'Tracks'], ['/splits', 'Splits'], ['/directorio', 'Directorio']] as const;
 
 export default function Tabs() {
   const path = usePathname();

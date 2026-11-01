@@ -106,9 +106,9 @@ export default function Directory({ people, workspaces, memberships }: Props) {
   );
 }
 
-function ProfilePanel({ person, people, workspaces, memberships, onClose, onOpen, onDone }: {
+export function ProfilePanel({ person, people, workspaces, memberships, onClose, onOpen, onDone, preset }: {
   person: Person | null; people: Person[]; workspaces: Workspace[]; memberships: Membership[];
-  onClose: () => void; onOpen: (p: Person) => void; onDone: (msg: string) => void;
+  onClose: () => void; onOpen: (p: Person) => void; onDone: (msg: string, id?: string) => void; preset?: string[];
 }) {
   const roleIn = (id: string | null) => memberships.find((m) => m.workspace_id === id)?.role;
   const writable = memberships.filter((m) => canWriteRole(m.role));
@@ -127,7 +127,7 @@ function ProfilePanel({ person, people, workspaces, memberships, onClose, onOpen
     nationality: person?.nationality ?? '',
     email: person?.email ?? '',
     phone: person?.phone ?? '',
-    kinds: person?.kinds ?? ['songwriter'],
+    kinds: person?.kinds ?? preset ?? ['songwriter'],
     instruments: person?.instruments ?? '',
     isni: person?.isni ?? '',
     pro: person?.pro ?? '',
@@ -169,7 +169,7 @@ function ProfilePanel({ person, people, workspaces, memberships, onClose, onOpen
     }
     start(async () => {
       const r = await savePerson(f);
-      if (r.error) setErr(r.error); else onDone('Perfil guardado');
+      if (r.error) setErr(r.error); else onDone('Perfil guardado', r.id);
     });
   };
 

@@ -45,13 +45,14 @@ export type Recording = {
   wfh_status: DocStatus;
   waiver_status: DocStatus;
   license_status: DocStatus;
+  work_id: string | null;
   created_at: string;
 };
 
 export type WorkspaceLegal = { id: string; name: string; label_handles_legal: boolean };
 
 export const RECORDING_COLS =
-  'id, workspace_id, title, version_title, main_artist, featured_artists, track_type, isrc, release_title, release_type, release_date, label_handles_legal, wfh_status, waiver_status, license_status, created_at';
+  'id, workspace_id, title, version_title, main_artist, featured_artists, track_type, isrc, release_title, release_type, release_date, label_handles_legal, wfh_status, waiver_status, license_status, work_id, created_at';
 export const ASSET_COLS = 'id, recording_id, kind, label, file_name, storage_key, thumb_key, external_url, size_bytes, mime, sha256, created_at';
 
 export const labelHandles = (r: Pick<Recording, 'label_handles_legal'>, ws?: Pick<WorkspaceLegal, 'label_handles_legal'>) =>
@@ -71,7 +72,9 @@ export const docLabel = (r: Pick<Recording, 'track_type'>, k: DocKind) =>
 
 export type CheckItem = { key: string; label: string; ok: boolean; why: string; soon?: boolean; optional?: boolean };
 
-export function checklist(r: Recording, assets: Asset[], ws?: WorkspaceLegal): CheckItem[] {
+export type SplitState = { status: 'none' | 'draft' | 'sent' | 'signed'; label: string };
+
+export function checklist(r: Recording, assets: Asset[], ws?: WorkspaceLegal, split?: SplitState, labelCopy?: { ok: boolean; why: string }): CheckItem[] {
   const has = (k: string) => assets.some((a) => a.recording_id === r.id && a.kind === k);
   const items: CheckItem[] = [
     { key: 'ficha', label: 'Artista y ficha', ok: !!(r.title && r.main_artist), why: r.main_artist || 'Falta artista' },
@@ -85,8 +88,10 @@ export function checklist(r: Recording, assets: Asset[], ws?: WorkspaceLegal): C
       items.push({ key: k, label: docLabel(r, k), ok: s !== 'pending', why: s === 'signed' ? 'Firmado' : s === 'na' ? 'No aplica' : 'Pendiente' });
     }
   }
-  items.push({ key: 'split', label: 'Split sheet', ok: false, why: 'Llega con el módulo de splits', soon: true });
-  items.push({ key: 'labelcopy', label: 'Label copy', ok: false, why: 'Llega con el módulo de label copy', soon: true });
+  items.push({ key: 'split', label: 'Split sheet', ok: split?.status === 'signed', why: split ? split.label : 'Sin split' });
+  items.push(labelCopy
+    ? { key: 'labelcopy', label: 'Label copy', ok: labelCopy.ok, why: labelCopy.why }
+    : { key: 'labelcopy', label: 'Label copy', ok: false, why: 'Pendiente', soon: true });
   return items;
 }
 export const missingOf = (items: CheckItem[]) => items.filter((i) => !i.ok && !i.optional && !i.soon);

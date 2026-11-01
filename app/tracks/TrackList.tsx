@@ -2,14 +2,14 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { checklist, fmtDate, missingOf, TRACK_TYPES, type Asset, type Recording, type WorkspaceLegal } from '@/lib/tracks';
+import { checklist, fmtDate, missingOf, TRACK_TYPES, type Asset, type Recording, type SplitState, type WorkspaceLegal } from '@/lib/tracks';
 import type { Member } from '@/lib/session';
 import Panel from '../components/Panel';
 import TrackForm from './TrackForm';
 
-type Props = { recordings: Recording[]; assets: Asset[]; thumbs: Record<string, string>; workspaces: WorkspaceLegal[]; memberships: Member[] };
+type Props = { recordings: Recording[]; assets: Asset[]; thumbs: Record<string, string>; workspaces: WorkspaceLegal[]; memberships: Member[]; splits: Record<string, SplitState>; labelCopy: Record<string, { ok: boolean; why: string }> };
 
-export default function TrackList({ recordings, assets, thumbs, workspaces, memberships }: Props) {
+export default function TrackList({ recordings, assets, thumbs, workspaces, memberships, splits, labelCopy }: Props) {
   const router = useRouter();
   const [ws, setWs] = useState('');
   const [q, setQ] = useState('');
@@ -52,7 +52,7 @@ export default function TrackList({ recordings, assets, thumbs, workspaces, memb
           <ul className="tracks glass" aria-label="Tracks">
             {list.map((r) => {
               const cover = assets.find((a) => a.recording_id === r.id && a.kind === 'cover');
-              const miss = missingOf(checklist(r, assets, wsOf(r.workspace_id)));
+              const miss = missingOf(checklist(r, assets, wsOf(r.workspace_id), r.work_id ? splits[r.work_id] : undefined, labelCopy[r.id]));
               return (
                 <li key={r.id}>
                   <Link href={`/tracks/${r.id}`} className="trow-link">

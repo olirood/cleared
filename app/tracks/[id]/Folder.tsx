@@ -4,17 +4,21 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   checklist, docLabel, docStatus, fmtDate, fmtSize, isWeTransfer, labelHandles, missingOf, requiredDocs,
-  LINK_KINDS, TRACK_TYPES, type Asset, type DocKind, type Recording, type WorkspaceLegal,
+  LINK_KINDS, TRACK_TYPES, type Asset, type DocKind, type Recording, type SplitState, type WorkspaceLegal,
 } from '@/lib/tracks';
 import { MAX_BYTES, makeThumb, sha256, uploadToFolder } from '@/lib/upload';
 import Panel, { Toast } from '../../components/Panel';
 import TrackForm from '../TrackForm';
 import { Thumb } from '../TrackList';
 import { addLink, recordFile, removeAsset, setDocStatus, setLegal } from '../actions';
+import { createTrackSplit, linkTrack } from '../../splits/actions';
 
-type Props = { track: Recording; workspace: WorkspaceLegal; assets: Asset[]; urls: Record<string, string>; canWrite: boolean; canDelete: boolean };
+type Props = {
+  track: Recording; workspace: WorkspaceLegal; assets: Asset[]; urls: Record<string, string>; canWrite: boolean; canDelete: boolean;
+  split?: SplitState; labelCopy?: { ok: boolean; why: string }; sessions: { id: string; title: string; session_date: string | null }[];
+};
 
-export default function Folder({ track: r, workspace, assets, urls, canWrite, canDelete }: Props) {
+export default function Folder({ track: r, workspace, assets, urls, canWrite, canDelete, split, labelCopy, sessions }: Props) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [toast, setToast] = useState('');
@@ -27,7 +31,7 @@ export default function Folder({ track: r, workspace, assets, urls, canWrite, ca
     if (!res.error) router.refresh();
   });
 
-  const items = checklist(r, assets, workspace);
+  const items = checklist(r, assets, workspace, split, labelCopy);
   const miss = missingOf(items);
   const cover = assets.find((a) => a.kind === 'cover');
   const handles = labelHandles(r, workspace);
@@ -67,6 +71,34 @@ export default function Folder({ track: r, workspace, assets, urls, canWrite, ca
           </ul>
         </section>
         <CoverCard track={r} cover={cover} urls={urls} canWrite={canWrite} onDone={(m) => { setToast(m); router.refresh(); }} onError={setToast} />
+      </div>
+
+      <div className="folder-grid even">
+        <section className="card glass">
+          <header><h2>Split sheet</h2>{split && <span className={`pill ${split.status === 'signed' ? 'ok' : split.status === 'sent' ? 'warn' : ''}`}>{split.label}</span>}</header>
+          {r.work_id ? (
+            <>
+              <p className="muted small">Quién escribió la canción y con qué porcentaje. Se firma por enlace.</p>
+              <div className="row" style={{ marginTop: 12 }}>
+                <Link className="btn primary" href={`/splits/${r.work_id}`}>Abrir split</Link>
+                {canWrite && split?.status !== 'signed' && split?.status !== 'sent' && <button className="btn ghost" disabled={busy} onClick={() => run(() => linkTrack(r.id, null), 'Split desligado')}>Desligar</button>}
+              </div>
+            </>
+          ) : canWrite ? (
+            <>
+              <p className="muted small">Crea el split con los datos de este track, o usa uno de sesión que ya exista.</p>
+              <div className="row" style={{ marginTop: 12 }}>
+                <button className="btn primary" disabled={busy} onClick={() => start(async () => { const res = await createTrackSplit(r.id); if (res.error) setToast(res.error); else router.push(`/splits/${res.id}`); })}>Crear split</button>
+                {sessions.length > 0 && <SessionPicker sessions={sessions} busy={busy} onPick={(id) => run(() => linkTrack(r.id, id), 'Split ligado')} />}
+              </div>
+            </>
+          ) : <p className="muted">Sin split.</p>}
+        </section>
+        <section className="card glass">
+          <header><h2>Label copy</h2>{labelCopy && <span className={`pill ${labelCopy.ok ? 'ok' : 'crit'}`}>{labelCopy.ok ? 'Completo' : 'Incompleto'}</span>}</header>
+          <p className="muted small">{labelCopy && !labelCopy.ok ? labelCopy.why + '.' : 'Créditos, códigos y datos de entrega.'} Se exporta en PDF y Excel.</p>
+          <div className="row" style={{ marginTop: 12 }}><Link className="btn primary" href={`/tracks/${r.id}/label-copy`}>Abrir label copy</Link></div>
+        </section>
       </div>
 
       <LinksCard track={r} assets={assets} canWrite={canWrite} busy={busy} run={run} />
@@ -306,3 +338,16 @@ function DocRow({ track, kind, files, urls, canWrite, busy, run, onDone, onError
   );
 }
 
+
+function SessionPicker({ sessions, busy, onPick }: { sessions: { id: string; title: string; session_date: string | null }[]; busy: boolean; onPick: (id: string) => void }) {
+  const [sel, setSel] = useState('');
+  return (
+    <span className="row">
+      <select value={sel} onChange={(e) => setSel(e.target.value)} aria-label="Split de sesión" style={{ maxWidth: 260 }}>
+        <option value="">Usar un split de sesión…</option>
+        {sessions.map((w) => <option key={w.id} value={w.id}>{w.title}{w.session_date ? ` · ${fmtDate(w.session_date)}` : ''}</option>)}
+      </select>
+      <button className="btn" disabled={!sel || busy} onClick={() => onPick(sel)}>Ligar</button>
+    </span>
+  );
+}

@@ -1,23 +1,42 @@
-import { redirect } from 'next/navigation';
-import { supabaseServer } from '@/lib/supabase/server';
+import Link from 'next/link';
+import { requireSession } from '@/lib/session';
+import { SUMMARY_SELECT, summarize, type AgreementSummary } from '@/lib/splitStatus';
 import TopBar from './components/TopBar';
 
 const ROLE: Record<string, string> = { owner: 'Dueño', admin: 'Administración', operator: 'Operación', viewer: 'Solo lectura' };
-const NEXT: [string, boolean][] = [['Directorio', true], ['Tracks y carpetas', true], ['Splits y aprobaciones', false], ['Label copy', false], ['Firmas', false]];
-
-type Row = { role: string; display_name: string | null; workspaces: { name: string; slug: string; letter_template: string } | null };
 
 export default async function Home() {
-  const sb = await supabaseServer();
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) redirect('/login');
-  const { data } = await sb
-    .from('memberships')
-    .select('role, display_name, workspaces(name, slug, letter_template)')
-    .eq('user_id', user.id)
-    .order('created_at');
-  const rows = (data ?? []) as unknown as Row[];
-  const name = rows.find((r) => r.display_name)?.display_name || user.email || '';
+  const { sb, memberships, name } = await requireSession();
+  const mine = new Set(memberships.map((m) => m.workspace_id));
+  const [ws, works, ags, recs] = await Promise.all([
+    sb.from('workspaces').select('id, name, slug, letter_template').order('name'),
+    sb.from('works').select('id, title, workspace_id'),
+    sb.from('split_agreements').select(SUMMARY_SELECT).neq('status', 'void'),
+    sb.from('recordings').select('id', { count: 'exact', head: true }),
+  ]);
+  const workOf = (id: string) => (works.data ?? []).find((w) => w.id === id);
+  const items = ((ags.data ?? []) as unknown as AgreementSummary[]).map((a) => {
+    const w = workOf(a.work_id);
+    return { a, w, s: summarize(a, w?.workspace_id ?? '') };
+  }).filter((x) => x.w);
+  const toApprove = items.filter((x) => x.a.status === 'draft' && x.s.reps.some((r) => mine.has(r.ws) && r.state !== 'ok'));
+  const inSigning = items.filter((x) => x.a.status === 'sent' && mine.has(x.w!.workspace_id));
+  const drafts = items.filter((x) => x.a.status === 'draft' && mine.has(x.w!.workspace_id));
+  const myWs = (ws.data ?? []).filter((w) => mine.has(w.id));
+  const first = memberships.find((m) => m.display_name)?.display_name;
+
+  const List = ({ title, rows, empty }: { title: string; rows: typeof items; empty: string }) => (
+    <section className="card glass">
+      <header><h2>{title}</h2><span className="pill">{rows.length}</span></header>
+      {rows.length ? (
+        <ul className="todo">
+          {rows.slice(0, 8).map(({ w, s }) => (
+            <li key={w!.id}><Link href={`/splits/${w!.id}`}>{w!.title}</Link><span className={`pill ${s.tone}`}>{s.label}</span></li>
+          ))}
+        </ul>
+      ) : <p className="muted small">{empty}</p>}
+    </section>
+  );
 
   return (
     <>
@@ -25,37 +44,39 @@ export default async function Home() {
       <main className="wrap stack">
         <div>
           <p className="eyebrow">Inicio</p>
-          <h1>Hola{rows[0]?.display_name ? `, ${rows[0].display_name}` : ''}</h1>
+          <h1>Hola{first ? `, ${first}` : ''}</h1>
         </div>
 
-        {rows.length === 0 ? (
+        {memberships.length === 0 ? (
           <section className="card glass empty">
             <h2>Tu cuenta aún no tiene espacios</h2>
             <p>Pide a quien te invitó que te agregue a un espacio. Mientras tanto no verás ningún dato.</p>
           </section>
         ) : (
-          <section className="ws-grid" aria-label="Tus espacios">
-            {rows.map((r) => r.workspaces && (
-              <article key={r.workspaces.slug} className="card glass ws-card">
-                <span className="mark">{r.workspaces.name[0]}</span>
-                <div>
-                  <h2>{r.workspaces.name}</h2>
-                  <p className="muted small">
-                    {ROLE[r.role] ?? r.role}
-                    {r.workspaces.letter_template === 'apollo' ? ' · Carta de split de Apollo' : ''}
-                  </p>
-                </div>
-              </article>
-            ))}
-          </section>
+          <>
+            <section className="ws-grid" aria-label="Tus espacios">
+              {myWs.map((w) => {
+                const m = memberships.find((x) => x.workspace_id === w.id)!;
+                return (
+                  <article key={w.id} className="card glass ws-card">
+                    <span className="mark">{w.name[0]}</span>
+                    <div><h2>{w.name}</h2><p className="muted small">{ROLE[m.role] ?? m.role}{w.letter_template === 'apollo' ? ' · Carta de split de Apollo' : ''}</p></div>
+                  </article>
+                );
+              })}
+            </section>
+            {toApprove.length > 0 && <List title="Te toca aprobar" rows={toApprove} empty="" />}
+            <div className="folder-grid even">
+              <List title="En firma" rows={inSigning} empty="Ningún split esperando firmas." />
+              <List title="Borradores" rows={drafts} empty="Sin splits en borrador." />
+            </div>
+            <div className="row">
+              <Link className="btn" href="/tracks">Tracks ({recs.count ?? 0})</Link>
+              <Link className="btn" href="/splits">Splits ({items.length})</Link>
+              <Link className="btn" href="/directorio">Directorio</Link>
+            </div>
+          </>
         )}
-
-        <section className="card glass">
-          <header><h2>En camino</h2><span className="pill">Se pasan del demo uno por uno</span></header>
-          <ul className="todo">
-            {NEXT.map(([n, ready]) => <li key={n}><span>{n}</span>{ready ? <span className="pill ok">Listo</span> : <span className="pill">Pendiente</span>}</li>)}
-          </ul>
-        </section>
       </main>
     </>
   );

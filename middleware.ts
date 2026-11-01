@@ -20,6 +20,8 @@ export async function middleware(request: NextRequest) {
   );
   const { data: { user } } = await supabase.auth.getUser();
   const isLogin = request.nextUrl.pathname.startsWith('/login');
+  // la página de firma es pública: el enlace único es la llave
+  if (request.nextUrl.pathname.startsWith('/firmar/')) return response;
   if (!user && !isLogin) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
@@ -36,5 +38,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|icon.svg|robots.txt).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|icon.svg|robots.txt|apollo-logo.png).*)'],
 };

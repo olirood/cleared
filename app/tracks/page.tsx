@@ -1,4 +1,5 @@
 import { requireSession, signedUrls } from '@/lib/session';
+import { labelCopyStates, splitStates } from '@/lib/composition';
 import { ASSET_COLS, RECORDING_COLS, type Asset, type Recording, type WorkspaceLegal } from '@/lib/tracks';
 import TopBar from '../components/TopBar';
 import TrackList from './TrackList';
@@ -17,12 +18,17 @@ export default async function TracksPage() {
     ? ((await sb.from('assets').select(ASSET_COLS).in('recording_id', recordings.map((r) => r.id))).data ?? []) as Asset[]
     : [];
   const thumbs = await signedUrls(sb, assets.filter((a) => a.kind === 'cover').map((a) => a.thumb_key));
+  const works = recordings.filter((r) => r.work_id).map((r) => ({ id: r.work_id!, workspace_id: r.workspace_id }));
+  const [splits, lc] = await Promise.all([
+    splitStates(sb, works),
+    labelCopyStates(sb, recordings.map((r) => r.id), Object.fromEntries(recordings.map((r) => [r.id, r.work_id]))),
+  ]);
 
   return (
     <>
       <TopBar name={name} />
       <main className="wrap">
-        <TrackList recordings={recordings} assets={assets} thumbs={thumbs} workspaces={(ws.data ?? []) as WorkspaceLegal[]} memberships={memberships} />
+        <TrackList recordings={recordings} assets={assets} thumbs={thumbs} splits={splits} labelCopy={lc} workspaces={(ws.data ?? []) as WorkspaceLegal[]} memberships={memberships} />
       </main>
     </>
   );
