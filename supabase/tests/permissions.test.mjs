@@ -1,34 +1,13 @@
-import { PGlite } from '@electric-sql/pglite';
-import { citext } from '@electric-sql/pglite/contrib/citext';
-import fs from 'fs';
-const db = new PGlite({ extensions: { citext } });
-const ok = (m) => console.log('OK  ', m), bad = (m) => { console.log('FAIL', m); process.exitCode = 1; };
-// stand-ins for what Supabase provides
-await db.exec(`
-  create role anon nologin; create role authenticated nologin;
-  create schema auth; create table auth.users (id uuid primary key);
-  create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
-  grant usage on schema auth to authenticated; grant execute on function auth.uid() to authenticated;
-`);
-await db.exec(fs.readFileSync(new URL('../migrations/20261101000000_init.sql', import.meta.url), 'utf8'));
-await db.exec(`grant usage on schema public to authenticated;
-  grant select, insert, update, delete on all tables in schema public to authenticated;
-  revoke all on public.signatures from authenticated;
-  grant select (id, participant_id, status, expires_at, signed_at, method, consent_version) on public.signatures to authenticated;
-  grant usage, select on all sequences in schema public to authenticated;`);
-ok('migración aplicada');
+import { setupDb } from './setup.mjs';
+const { db, ws: W, as, ok, bad, expectErr } = await setupDb();
+ok('migraciones aplicadas');
 const U = { mar: '00000000-0000-0000-0000-00000000000a', oli: '00000000-0000-0000-0000-00000000000b', ext: '00000000-0000-0000-0000-00000000000c' };
-const W = { apollo: '10000000-0000-0000-0000-000000000001', octavio: '10000000-0000-0000-0000-000000000002', kevin: '10000000-0000-0000-0000-000000000003' };
 await db.exec(`
-  insert into auth.users values ('${U.mar}'),('${U.oli}'),('${U.ext}');
-  insert into workspaces (id,name,slug,letter_template) values ('${W.apollo}','Apollo Music','apollo','apollo'),('${W.octavio}','Octavio Cuadras','octavio','generic'),('${W.kevin}','Kevin Cuadras','kevin','generic');
+  set session_replication_role = replica;  -- cuentas creadas directo, sin pasar por invitación
+  insert into auth.users values ('${U.mar}','mar@test'),('${U.oli}','oli@test'),('${U.ext}','ext@test');
+  set session_replication_role = origin;
   insert into memberships values ('${W.apollo}','${U.mar}','operator','Margarita',now()),('${W.octavio}','${U.oli}','owner','Oliver',now()),('${W.kevin}','${U.oli}','owner','Oliver',now());
 `);
-const as = async (uid, sql, params) => {
-  await db.exec(`reset role; select set_config('request.jwt.claim.sub', '${uid || ''}', false); set role authenticated;`);
-  try { return await db.query(sql, params); } finally { await db.exec('reset role'); }
-};
-const expectErr = async (label, fn) => { try { await fn(); bad(label + ' (no falló)'); } catch (e) { ok(label + ' → ' + e.message.split('\n')[0]); } };
 
 // Margarita da de alta a una compositora representada por Apollo
 const mar = (await as(U.mar, `insert into people (owner_workspace_id, represented_by, legal_name, ipi, kinds) values ($1,$1,'Mariana Soto Valdez','00634567890','{songwriter}') returning id`, [W.apollo])).rows[0].id;
