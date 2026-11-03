@@ -5,14 +5,14 @@ import { useRouter } from 'next/navigation';
 import { ROLES, fmtPct, fmtDateTime, parsePct, type Agreement, type Approval, type Participant, type Signature, type Work } from '@/lib/splits';
 import { missing, type Person } from '@/lib/people';
 import { fmtDate } from '@/lib/tracks';
-import { downloadBlob, fileSafe, letterPdf, rowFrom, type LetterModel } from '@/lib/letter';
+import { certificatePdf, downloadBlob, fileSafe, letterPdf, rowFrom, type LetterModel } from '@/lib/letter';
 import type { Member } from '@/lib/session';
 import { needsApproval, repLabel, type Rep } from '@/lib/reps';
 import Panel, { Toast } from '../../components/Panel';
 import Letter from '../../components/Letter';
 import { ProfilePanel } from '../../directorio/Directory';
 import WorkForm from '../WorkForm';
-import { addParticipant, startSplit, decide, ensureArchived, equalize, issueLink, newVersion, removeParticipant, resendFinal, sendSplit, updateParticipant } from '../actions';
+import { addParticipant, setLetterLanguage, startSplit, decide, ensureArchived, equalize, issueLink, newVersion, removeParticipant, resendFinal, sendSplit, updateParticipant } from '../actions';
 
 type Log = { id: number; action: string; detail: Record<string, unknown> | null; at: string; entity_id: string; workspace_id: string | null };
 type Props = {
@@ -77,14 +77,15 @@ export default function SplitEditor(props: Props) {
   }
 
   const sigOf = (pid: string) => signatures.find((s) => s.participant_id === pid);
+  const lang = current?.language === 'es' ? 'es' : 'en';
   const model: LetterModel | null = current && {
-    title: work.title, artist: work.artist || '', version: current.version, status: current.status,
+    title: work.title, artist: work.artist || '', version: current.version, status: current.status, lang,
     date: work.session_date || (current.sent_at || new Date().toISOString()).slice(0, 10),
     template: current.template || owner?.letter_template || 'generic', workspace: owner?.name || '',
     rows: participants.map((p) => {
       const pe = person(p.person_id);
       const snap = p.snapshot ?? { legal_name: pe?.legal_name, credit_name: pe?.credit_name, publisher: pe?.publishers?.name, pro: pe?.pro, ipi: pe?.ipi, email: pe?.email, phone: pe?.phone };
-      return rowFrom({ role: p.role, share_bp: p.share_bp, credits: p.credits, snap, sig: sigOf(p.id) });
+      return rowFrom({ role: p.role, share_bp: p.share_bp, credits: p.credits, snap, sig: sigOf(p.id) }, lang);
     }),
     hash: current.content_sha256, sentAt: current.sent_at, completedAt: current.completed_at,
     log: log.filter((l) => l.entity_id === current.id).map((l) => ({ at: l.at, text: logText(l) })),
@@ -99,6 +100,10 @@ export default function SplitEditor(props: Props) {
   const pdf = () => model && start(async () => {
     try { downloadBlob(await letterPdf(model), `Split ${fileSafe(work.title)} v${model.version}.pdf`); }
     catch { setToast('No se pudo generar el PDF.'); }
+  });
+  const certPdf = () => model && start(async () => {
+    try { downloadBlob(await certificatePdf(model), `Constancia de firma ${fileSafe(work.title)} v${model.version}.pdf`); }
+    catch { setToast('No se pudo generar la constancia.'); }
   });
 
   const shareMsg = (pid: string, link: string) => {
@@ -135,6 +140,7 @@ export default function SplitEditor(props: Props) {
           {isOwner && <button className="btn" onClick={() => setPanel('edit')}>Editar datos</button>}
           {current && participants.length > 0 && <button className="btn" onClick={() => setPanel('letter')}>Ver carta</button>}
           {current && participants.length > 0 && <button className="btn" onClick={pdf} disabled={busy}>PDF</button>}
+          {current && current.status !== 'draft' && <button className="btn" onClick={certPdf} disabled={busy} title="Constancia de firma: cómo firmó cada quien, bitácora y aviso aceptado">Constancia</button>}
         </div>
       </section>
 
@@ -263,7 +269,11 @@ export default function SplitEditor(props: Props) {
               <ul className="problems">{problems.map((x) => <li key={x}>{x}</li>)}</ul>
               {isOwner && (
                 <div className="row spread" style={{ marginTop: 16 }}>
-                  <span className="muted small">Se genera con la carta de {owner?.name}. Al enviar se congela: cualquier cambio después crea una versión nueva.</span>
+                  <span className="muted small lang-line"><span>Carta de {owner?.name} en</span>
+                    <span className="seg seg-mini" role="group" aria-label="Idioma de la carta">
+                      {(['en', 'es'] as const).map((l) => <button key={l} type="button" className="seg-b" aria-pressed={lang === l} disabled={!isOwner || busy} onClick={() => lang !== l && run(() => setLetterLanguage(current.id, l), l === 'es' ? 'Carta en español' : 'Carta en inglés')}>{l === 'es' ? 'Español' : 'English'}</button>)}
+                    </span>
+                    <span className="lang-note">Todos firman la misma carta. Al enviar se congela: cualquier cambio después crea una versión nueva.</span></span>
                   <button className="btn primary" disabled={busy || problems.length > 0}
                     onClick={() => run(async () => { const r = await sendSplit(current.id); if (r.links) setLinks(r.links); return r; }, 'Enviado a firma. Comparte los enlaces.')}>Cerrar y enviar a firma</button>
                 </div>

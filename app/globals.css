@@ -724,3 +724,12 @@ h2.h-ic > span { width: 28px; height: 28px; border-radius: 9px; display: grid; p
   .panel { position: absolute; inset: 0; box-shadow: none; background: #fff; color: #000; max-height: none; overflow: visible; }
   .panel .btn, .panel .icon-btn { display: none !important; }
 }
+
+/* idioma: selector en la página de firma y en el borrador del split */
+.sign-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.sign-top .eyebrow { margin: 0; }
+.seg.lang-pick, .seg.seg-mini { width: auto !important; height: 30px; padding: 2px; flex: none; flex-wrap: nowrap !important; }
+.seg.lang-pick .seg-b, .seg.seg-mini .seg-b { height: 26px; padding: 0 10px; font-size: .76rem; }
+.lang-line { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.seg.seg-mini { display: inline-flex; vertical-align: middle; }
+.lang-note { flex-basis: 100%; }

@@ -34,6 +34,7 @@ export type Agreement = {
   id: string; work_id: string; version: number; status: 'draft' | 'sent' | 'signed' | 'void';
   template: string | null; sent_at: string | null; completed_at: string | null; content_sha256: string | null; created_at: string;
   final_pdf_key?: string | null;
+  language?: string | null;   // idioma de la carta: 'en' o 'es'
 };
 export type Participant = {
   id: string; agreement_id: string; person_id: string; role: Role; share_bp: number; credits: string | null;
@@ -63,10 +64,11 @@ export const participantsSig = (ps: { person_id: string; role: string; share_bp:
   [...ps].sort((a, b) => (a.person_id < b.person_id ? -1 : 1)).map((p) => `${p.person_id}:${p.role}:${p.share_bp}`).join('|');
 
 // Contenido que se firma; su SHA-256 queda en el split al enviarlo
-export function canonical(work: { title: string; artist: string | null }, version: number, template: string, ps: { role: string; share_bp: number; credits: string | null; snapshot: Snapshot }[]) {
+export function canonical(work: { title: string; artist: string | null }, version: number, template: string, ps: { role: string; share_bp: number; credits: string | null; snapshot: Snapshot }[], lang: 'en' | 'es' = 'en') {
   return JSON.stringify({
     obra: { titulo: work.title, artista: work.artist || '', version },
     plantilla: template,
+    ...(lang === 'es' ? { idioma: 'es' } : {}),
     participantes: ps.map((p) => ({
       nombre: p.snapshot.legal_name, rol: p.role, bp: p.share_bp, sociedad: p.snapshot.pro || '', ipi: p.snapshot.ipi || '',
       editora: p.snapshot.publisher || '', creditos: p.credits || '',

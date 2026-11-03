@@ -3,7 +3,7 @@
 // Entrega un PNG recortado a lo dibujado (fondo transparente, tinta negra), o null si está vacío.
 import { useEffect, useRef, useState } from 'react';
 
-export default function SignaturePad({ onChange }: { onChange: (png: string | null) => void }) {
+export default function SignaturePad({ onChange, hint = 'Firma aquí con el dedo o el mouse', clearLabel = 'Borrar', label = 'Dibuja tu firma' }: { onChange: (png: string | null) => void; hint?: string; clearLabel?: string; label?: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
   const last = useRef<{ x: number; y: number } | null>(null);
@@ -78,10 +78,10 @@ export default function SignaturePad({ onChange }: { onChange: (png: string | nu
 
   return (
     <div className="sigpad">
-      <canvas ref={ref} aria-label="Dibuja tu firma" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerLeave={up} />
+      <canvas ref={ref} aria-label={label} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerLeave={up} />
       <span className="sigpad-line" aria-hidden="true" />
-      {empty && <span className="sigpad-hint" aria-hidden="true">Firma aquí con el dedo o el mouse</span>}
-      {!empty && <button type="button" className="btn small sigpad-clear" onClick={clear}>Borrar</button>}
+      {empty && <span className="sigpad-hint" aria-hidden="true">{hint}</span>}
+      {!empty && <button type="button" className="btn small sigpad-clear" onClick={clear}>{clearLabel}</button>}
     </div>
   );
 }

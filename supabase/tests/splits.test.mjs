@@ -137,3 +137,19 @@ fin3.approvers.some((a) => a.email === 'mar@test' && a.workspace === 'Apollo Mus
 // el documento final dice qué aviso aceptó cada quien
 const fin4 = (await one(null, `select completed_document_for($1,$2) d`, [ag, await KEY()])).d;
 fin4.participants.every((p) => 'consent_version' in p) && fin4.participants.some((p) => p.consent_version === 'v1') ? ok('El documento final trae la versión del aviso aceptado por cada firmante') : bad('consent: ' + JSON.stringify(fin4.participants.map((p) => p.consent_version)));
+
+// idioma de la carta
+{
+  const wl = (await one(U.oli, `insert into works (workspace_id, title) values ($1,'En español') returning id`, [W.kevin])).id;
+  const al = (await one(U.oli, `insert into split_agreements (work_id, version, language) values ($1,1,'es') returning id`, [wl])).id;
+  (await one(U.oli, `select language from split_agreements where id=$1`, [al])).language === 'es' ? ok('La carta puede ir en español') : bad('idioma');
+  await expectErr('Solo inglés o español', () => as(U.oli, `update split_agreements set language='fr' where id=$1`, [al]));
+  await as(U.oli, `insert into split_participants (agreement_id, person_id, role, share_bp) values ($1,$2,'songwriter',10000)`, [al, kev]);
+  await as(U.oli, `update split_agreements set status='sent' where id=$1`, [al]);
+  await expectErr('Al enviarla, el idioma se congela', () => as(U.oli, `update split_agreements set language='en' where id=$1`, [al]));
+  const pl = (await one(U.oli, `select id from split_participants where agreement_id=$1`, [al])).id;
+  await as(U.oli, `select issue_signature_link($1,$2)`, [pl, h('tok-es')]);
+  (await one(null, `select signing_view($1) v`, [h('tok-es')])).v.agreement.language === 'es' ? ok('Quien firma recibe el idioma de la carta') : bad('signing_view sin idioma');
+  const fin5 = (await one(null, `select completed_document_for($1,$2) d`, [ag, await KEY()])).d;
+  fin5.agreement.language === 'en' ? ok('El documento final dice el idioma de la carta') : bad('final sin idioma');
+}

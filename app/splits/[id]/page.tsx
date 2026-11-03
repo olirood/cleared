@@ -26,6 +26,9 @@ export default async function SplitPage({ params }: { params: Promise<{ id: stri
     sb.rpc('workspace_reps'),
   ]);
   const agreements = (ags.data ?? []) as Agreement[];
+  // idioma de cada versión aparte: si la migración aún no corre, todas en inglés como antes
+  const langs = await sb.from('split_agreements').select('id, language').eq('work_id', id);
+  if (!langs.error) for (const l of (langs.data ?? []) as { id: string; language: string }[]) { const ag = agreements.find((x) => x.id === l.id); if (ag) ag.language = l.language; }
   const current = agreements.find((a) => a.status !== 'void') ?? agreements[0] ?? null;
 
   let participants: Participant[] = [], approvals: Approval[] = [], signatures: Signature[] = [];

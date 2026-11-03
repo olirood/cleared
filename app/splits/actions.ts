@@ -5,7 +5,7 @@ import { supabaseServer } from '@/lib/supabase/server';
 import { ROLES, canonical, equalShares, type Snapshot } from '@/lib/splits';
 import { mailConfigured, mailError } from '@/lib/mail';
 import { artistLine } from '@/lib/tracks';
-import { buildFinalPdf, sendFinalDocument, type FinalDoc } from '@/lib/finalMail';
+import { buildFinalPdfs, sendFinalDocument, type FinalDoc } from '@/lib/finalMail';
 
 export type Result = { error?: string; id?: string; links?: Record<string, string>; link?: string };
 type PgErr = { code?: string; message?: string };
@@ -43,6 +43,26 @@ async function agreementCtx(sb: SB, agreementId: string) {
   if (!data) return null;
   const w = data.works as unknown as { workspace_id: string; title: string; artist: string | null };
   return { ...data, workspace_id: w.workspace_id, title: w.title, artist: w.artist };
+}
+
+// idioma de la carta; si la columna aún no existe (falta la migración), inglés como siempre
+async function letterLangOf(sb: SB, agreementId: string): Promise<'en' | 'es'> {
+  const { data, error } = await sb.from('split_agreements').select('language').eq('id', agreementId).maybeSingle();
+  return !error && (data as { language?: string } | null)?.language === 'es' ? 'es' : 'en';
+}
+
+// Idioma de la carta: solo en borrador (al enviar se congela)
+export async function setLetterLanguage(agreementId: string, lang: 'en' | 'es'): Promise<Result> {
+  if (lang !== 'en' && lang !== 'es') return { error: 'Idioma no válido.' };
+  const { sb } = await ctx();
+  const a = await agreementCtx(sb, agreementId);
+  if (!a) return { error: 'No se encontró el split.' };
+  if (a.status !== 'draft') return { error: 'Este split ya se envió; para cambiar el idioma crea una versión nueva.' };
+  const { data, error } = await sb.from('split_agreements').update({ language: lang }).eq('id', agreementId).select('id');
+  if (error) return { error: /language/.test(error.message) ? 'Falta correr la migración de idioma en Supabase.' : explain(error) };
+  if (!data?.length) return { error: 'No tienes permiso para cambiar este split.' };
+  refresh(a.work_id);
+  return {};
 }
 
 // ---------- obras ----------
@@ -251,7 +271,8 @@ export async function sendSplit(agreementId: string): Promise<Result> {
     const { error } = await sb.from('split_participants').update({ snapshot: f.snapshot }).eq('id', f.id);
     if (error) return { error: explain(error) };
   }
-  const hash = await sha256Hex(canonical({ title: a.title, artist: a.artist }, a.version, template, frozen));
+  const lang = await letterLangOf(sb, agreementId);
+  const hash = await sha256Hex(canonical({ title: a.title, artist: a.artist }, a.version, template, frozen, lang));
   const { error } = await sb.from('split_agreements').update({ status: 'sent', content_sha256: hash, template }).eq('id', agreementId);
   if (error) return { error: explain(error) };
   await log(sb, a.workspace_id, agreementId, 'sent', { sha256: hash });
@@ -285,7 +306,8 @@ export async function newVersion(agreementId: string): Promise<Result> {
   const { data: ps } = await sb.from('split_participants').select('person_id, role, share_bp, credits, position').eq('agreement_id', agreementId);
   const { error } = await sb.from('split_agreements').update({ status: 'void' }).eq('id', agreementId);
   if (error) return { error: explain(error) };
-  const { data: next, error: e2 } = await sb.from('split_agreements').insert({ work_id: a.work_id, version: a.version + 1 }).select('id').single();
+  const lang = await letterLangOf(sb, agreementId);
+  const { data: next, error: e2 } = await sb.from('split_agreements').insert({ work_id: a.work_id, version: a.version + 1, ...(lang === 'es' ? { language: 'es' } : {}) }).select('id').single();
   if (e2) return { error: explain(e2) };
   if (ps?.length) {
     const { error: e3 } = await sb.from('split_participants').insert(ps.map((p) => ({ ...p, agreement_id: next.id })));
@@ -319,28 +341,38 @@ export async function ensureArchived(workId: string): Promise<Result> {
     .eq('work_id', workId).eq('status', 'signed').maybeSingle();
   if (!ag) return {};
   const w = ag.works as unknown as { workspace_id: string; title: string };
-  let key = ag.final_pdf_key as string | null, sha = ag.final_pdf_sha256 as string | null, size = 0, fileName = '';
+  const sha256 = async (b: Uint8Array) => [...new Uint8Array(await crypto.subtle.digest('SHA-256', b as unknown as ArrayBuffer))].map((x) => x.toString(16).padStart(2, '0')).join('');
+  let key = ag.final_pdf_key as string | null;
+  // la constancia va aparte, junto a la carta
+  const docs: { key: string; name: string; label: string; sha: string | null; size: number }[] = [];
   if (!key) {
     const { data, error } = await sb.rpc('completed_document_for', { agreement: ag.id, server_key: process.env.CLEARED_SERVER_KEY });
     if (error || !data) return {};
-    const { bytes, name } = await buildFinalPdf(data as FinalDoc);
-    sha = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map((b) => b.toString(16).padStart(2, '0')).join('');
+    const { letter, cert } = await buildFinalPdfs(data as FinalDoc);
     key = `${w.workspace_id}/splits/${ag.id}.pdf`;
-    const up = await sb.storage.from('cleared').upload(key, bytes, { contentType: 'application/pdf', upsert: false });
+    const certKey = `${w.workspace_id}/splits/${ag.id}-constancia.pdf`;
+    const up = await sb.storage.from('cleared').upload(key, letter.bytes, { contentType: 'application/pdf', upsert: false });
     if (up.error && !/exists|duplicate/i.test(up.error.message)) return {};   // sin permiso de escritura: lo hará alguien que sí tenga
+    const up2 = await sb.storage.from('cleared').upload(certKey, cert.bytes, { contentType: 'application/pdf', upsert: false });
+    const sha = await sha256(letter.bytes);
     const { error: e2 } = await sb.from('split_agreements').update({ final_pdf_key: key, final_pdf_sha256: sha }).eq('id', ag.id);
     if (e2) return {};
-    size = bytes.length; fileName = name;
+    docs.push({ key, name: letter.name, label: `Split firmado v${ag.version}`, sha, size: letter.bytes.length });
+    if (!up2.error || /exists|duplicate/i.test(up2.error.message)) docs.push({ key: certKey, name: cert.name, label: `Constancia de firma v${ag.version}`, sha: await sha256(cert.bytes), size: cert.bytes.length });
+  } else {
+    docs.push({ key, name: `Split ${w.title} v${ag.version} firmado.pdf`, label: `Split firmado v${ag.version}`, sha: ag.final_pdf_sha256 as string | null, size: 0 });
   }
   // en la carpeta de cada track ligado a esta obra
   const { data: recs } = await sb.from('recordings').select('id').eq('work_id', workId);
   for (const r of recs ?? []) {
-    const { count } = await sb.from('assets').select('id', { count: 'exact', head: true }).eq('recording_id', r.id).eq('storage_key', key);
-    if (!count) {
-      await sb.from('assets').insert({
-        recording_id: r.id, kind: 'other_doc', storage_key: key, file_name: fileName || `Split ${w.title} v${ag.version} firmado.pdf`,
-        label: `Split firmado v${ag.version}`, mime: 'application/pdf', sha256: sha, size_bytes: size || null,
-      });
+    for (const dd of docs) {
+      const { count } = await sb.from('assets').select('id', { count: 'exact', head: true }).eq('recording_id', r.id).eq('storage_key', dd.key);
+      if (!count) {
+        await sb.from('assets').insert({
+          recording_id: r.id, kind: 'other_doc', storage_key: dd.key, file_name: dd.name,
+          label: dd.label, mime: 'application/pdf', sha256: dd.sha, size_bytes: dd.size || null,
+        });
+      }
     }
   }
   return {};
