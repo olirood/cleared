@@ -82,7 +82,7 @@ export const docLabel = (r: Pick<Recording, 'track_type'>, k: DocKind) =>
 
 export type CheckItem = { key: string; label: string; ok: boolean; why: string; soon?: boolean; optional?: boolean };
 
-export type SplitState = { status: 'none' | 'draft' | 'sent' | 'signed'; label: string };
+export type SplitState = { status: 'none' | 'draft' | 'sent' | 'signed'; label: string; tone?: string };
 
 export function checklist(r: Recording, assets: Asset[], ws?: WorkspaceLegal, split?: SplitState, labelCopy?: { ok: boolean; why: string }): CheckItem[] {
   const has = (k: string) => assets.some((a) => a.recording_id === r.id && a.kind === k);

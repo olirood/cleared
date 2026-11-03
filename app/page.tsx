@@ -9,11 +9,10 @@ const ROLE: Record<string, string> = { owner: 'Dueño', admin: 'Administración'
 export default async function Home() {
   const { sb, memberships, name } = await requireSession();
   const mine = new Set(memberships.map((m) => m.workspace_id));
-  const [ws, works, ags, recs, repRows] = await Promise.all([
+  const [ws, works, ags, repRows] = await Promise.all([
     sb.from('workspaces').select('id, name, slug, letter_template').order('name'),
     sb.from('works').select('id, title, workspace_id'),
     sb.from('split_agreements').select(SUMMARY_SELECT).neq('status', 'void'),
-    sb.from('recordings').select('id', { count: 'exact', head: true }),
     sb.rpc('workspace_reps'),
   ]);
   const reps = buildReps((repRows.data ?? []) as RepRow[]);
@@ -74,11 +73,6 @@ export default async function Home() {
             <div className="folder-grid even">
               <List title="En firma" rows={inSigning} empty="Ningún split esperando firmas." />
               <List title="Borradores" rows={drafts} empty="Sin splits en borrador." />
-            </div>
-            <div className="row">
-              <Link className="btn" href="/tracks">Tracks ({recs.count ?? 0})</Link>
-              <Link className="btn" href="/splits">Splits ({items.length})</Link>
-              <Link className="btn" href="/directorio">Directorio</Link>
             </div>
           </>
         )}

@@ -12,7 +12,7 @@ import Panel, { Toast } from '../../components/Panel';
 import Letter from '../../components/Letter';
 import { ProfilePanel } from '../../directorio/Directory';
 import WorkForm from '../WorkForm';
-import { addParticipant, decide, ensureArchived, equalize, issueLink, newVersion, removeParticipant, resendFinal, sendSplit, updateParticipant } from '../actions';
+import { addParticipant, startSplit, decide, ensureArchived, equalize, issueLink, newVersion, removeParticipant, resendFinal, sendSplit, updateParticipant } from '../actions';
 
 type Log = { id: number; action: string; detail: Record<string, unknown> | null; at: string; entity_id: string; workspace_id: string | null };
 type Props = {
@@ -73,7 +73,7 @@ export default function SplitEditor(props: Props) {
     if (!participants.length) problems.push('Agrega a las personas que escribieron la canción.');
     else if (sum !== 10000) problems.push(sum > 10000 ? `Sobran ${fmtPct(sum - 10000)} %.` : `Faltan ${fmtPct(10000 - sum)} %.`);
     participants.forEach((p) => { const pe = person(p.person_id); const m = pe ? missing(pe) : ['perfil']; if (pe && !pe.email) m.push('correo'); if (m.length) problems.push(`A ${pe?.legal_name ?? 'un participante'} le falta ${m.join(', ')}.`); });
-    reps.forEach((ws) => { if (apState(ws).state !== 'ok') problems.push(`Falta que ${repName(ws)} apruebe.`); });
+    reps.forEach((ws) => { if (apState(ws).state !== 'ok') problems.push(writer(ws) ? 'Falta que apruebes tu parte.' : `Falta que ${repName(ws)} apruebe.`); });
   }
 
   const sigOf = (pid: string) => signatures.find((s) => s.participant_id === pid);
@@ -120,7 +120,7 @@ export default function SplitEditor(props: Props) {
       <section className="folder-head">
         <span className="thumb blank" style={{ width: 72, height: 72, fontSize: '1.6rem' }} aria-hidden="true">{work.title.trim()[0]?.toUpperCase()}</span>
         <div className="fh-main">
-          <p className="eyebrow">{owner?.name} · {tracks.length ? 'Split de track' : 'Split de sesión'}</p>
+          <p className="eyebrow">{owner?.name} · {!roleIn(work.workspace_id) ? 'Split' : tracks.length ? 'Split de track' : 'Split de sesión'}</p>
           <h1>{work.title}</h1>
           <p className="muted">{work.artist || 'Sin artista'}</p>
           <div className="row" style={{ marginTop: 8 }}>
@@ -150,6 +150,14 @@ export default function SplitEditor(props: Props) {
           })}</span>
           {isOwner && <button className="btn" disabled={busy} onClick={() => run(() => newVersion(current.id), `Versión ${current.version + 1} creada`)}>Crear versión {current.version + 1}</button>}
         </div>
+      )}
+
+      {!current && (
+        <section className="card glass empty">
+          <h2>Esta obra aún no tiene split</h2>
+          <p>Empieza la versión 1 para agregar a quienes escribieron la canción y sus porcentajes.</p>
+          {writer(work.workspace_id) && <button className="btn primary" disabled={busy} onClick={() => run(() => startSplit(work.id), 'Split creado')}>Empezar split</button>}
+        </section>
       )}
 
       {current && (
@@ -268,7 +276,7 @@ export default function SplitEditor(props: Props) {
       {current && current.status !== 'draft' && (
         <section className="card glass">
           <header><h2>Firmas</h2>{current.status === 'sent' && isOwner && changes.length === 0 && (
-            <button className={`btn ghost${armed === 'nv' ? ' danger armed' : ''}`} disabled={busy}
+            <button className={`btn small${armed === 'nv' ? ' danger armed' : ''}`} disabled={busy}
               onClick={() => armed === 'nv' ? (setArmed(''), run(() => newVersion(current.id), `Versión ${current.version + 1} creada`)) : setArmed('nv')}>
               {armed === 'nv' ? 'Confirmar: anular y corregir' : `Corregir y crear versión ${current.version + 1}`}</button>)}</header>
           <ul className="signers">

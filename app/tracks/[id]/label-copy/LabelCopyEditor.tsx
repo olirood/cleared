@@ -139,7 +139,7 @@ function Credits({ title, category, roles, r, credits, people, canWrite, busy, r
                 <select value={known ? c.role : '__other'} aria-label="Rol"
                   onChange={(e) => e.target.value !== '__other' && run(() => updateCredit(c.id, r.id, { role: e.target.value }), 'Guardado')}>
                   {roles.map(([k, v]) => <option key={k} value={k}>{category === 'performer' ? v : `${v} · ${k}`}</option>)}
-                  <option value="__other">{known ? 'Otro…' : c.role}</option>
+                  <option value="__other">Otro…</option>
                 </select>
                 <select value={newFor?.id === c.id ? '__new' : c.person_id ?? (c.display_name ? '__free' : '')} aria-label="Persona"
                   onChange={(e) => {
@@ -161,7 +161,7 @@ function Credits({ title, category, roles, r, credits, people, canWrite, busy, r
                   <input defaultValue={c.detail ?? ''} placeholder={STUDIO_ROLES.includes(c.role) ? 'Estudio y ciudad' : 'Nota (opcional)'} aria-label="Detalle"
                     onBlur={(e) => e.target.value.trim() !== (c.detail ?? '') && run(() => updateCredit(c.id, r.id, { detail: e.target.value }), 'Guardado')} />
                 )}
-                {!known && <input defaultValue={c.role} aria-label="Rol personalizado" onBlur={(e) => e.target.value.trim() && e.target.value.trim() !== c.role && run(() => updateCredit(c.id, r.id, { role: e.target.value }), 'Guardado')} />}
+                {!known && <input defaultValue={c.role} placeholder="Escribe el rol" aria-label="Rol personalizado" onBlur={(e) => e.target.value.trim() && e.target.value.trim() !== c.role && run(() => updateCredit(c.id, r.id, { role: e.target.value }), 'Guardado')} />}
                 <button type="button" className="icon-btn" aria-label="Quitar crédito" onClick={() => run(() => removeCredit(c.id, r.id), 'Quitado')}>×</button>
                 {newFor?.id === c.id && (
                   <QuickPerson busy={busy} onCancel={() => setNewFor(null)}

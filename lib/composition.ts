@@ -17,7 +17,8 @@ export async function splitStates(sb: SB, works: { id: string; workspace_id: str
   const out: Record<string, SplitState> = {};
   for (const w of works) {
     const a = ((data ?? []) as unknown as AgreementSummary[]).find((x) => x.work_id === w.id);
-    out[w.id] = { status: a ? (a.status as SplitState['status']) : 'none', label: summarize(a, w.workspace_id, reps).label };
+    const s = summarize(a, w.workspace_id, reps);
+    out[w.id] = { status: a ? (a.status as SplitState['status']) : 'none', label: s.label, tone: s.tone };
   }
   return out;
 }

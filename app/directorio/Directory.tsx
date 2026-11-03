@@ -75,10 +75,10 @@ export default function Directory({ people, workspaces, memberships, reps }: Pro
                       </td>
                       <td>
                         {p.kinds.includes('songwriter') ? (
-                          <>{p.pro || '—'}{p.ipi && <> · <span className="mono">IPI {p.ipi}</span></>}<div className="muted small">{p.publishers?.name || 'Sin editora'}</div></>
-                        ) : <span className="muted">No aplica</span>}
+                          <>{p.pro || '—'}{p.ipi && <> · <span className="mono nowrap">IPI {p.ipi}</span></>}<div className="muted small">{p.publishers?.name || 'Sin editora'}</div></>
+                        ) : <span className="muted hide-m">No aplica</span>}
                       </td>
-                      <td className="small">{p.email || '—'}<div className="muted">{p.phone || ''}</div></td>
+                      <td className="small">{p.email || <span className="muted hide-m">—</span>}{p.phone && <div className="muted">{p.phone}</div>}</td>
                       <td>{m.length ? <span className="pill crit">Falta {m.join(', ')}</span> : <span className="pill ok">Completo</span>}</td>
                     </tr>
                   );

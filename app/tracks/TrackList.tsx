@@ -60,7 +60,7 @@ export default function TrackList({ recordings, assets, thumbs, workspaces, memb
                     <div className="tmain">
                       <strong>{r.title}{r.version_title && <span className="muted"> ({r.version_title})</span>}</strong>
                       <div className="muted small">
-                        {[artistLine(r), TRACK_TYPES[r.track_type], r.release_title].filter(Boolean).join(' · ')}
+                        {[artistLine(r), TRACK_TYPES[r.track_type], r.release_title?.trim().toLowerCase() !== r.title.trim().toLowerCase() && r.release_title].filter(Boolean).join(' · ')}
                       </div>
                     </div>
                     <div className="tmeta small">
@@ -68,7 +68,7 @@ export default function TrackList({ recordings, assets, thumbs, workspaces, memb
                       <div className="muted">{r.release_date ? fmtDate(r.release_date) : 'Fecha pendiente'}</div>
                     </div>
                     <div className="tstate">
-                      {miss.length ? <span className="pill crit">Falta {miss.length === 1 ? miss[0].label.toLowerCase() : `${miss.length}`}</span> : <span className="pill ok">Listo</span>}
+                      {miss.length ? <span className="pill crit">{miss.length === 1 ? `Falta ${miss[0].label.toLowerCase()}` : `Faltan ${miss.length}`}</span> : <span className="pill ok">Listo</span>}
                     </div>
                   </Link>
                 </li>

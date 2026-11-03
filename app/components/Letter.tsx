@@ -19,8 +19,8 @@ export default function Letter({ m }: { m: LetterModel }) {
           <tbody>
             {m.rows.map((r, i) => (
               <tr key={i}>
-                <td>{r.name}</td><td>{r.artist}</td><td>{r.role}</td><td className="c">{r.pct}</td><td>{r.publisher}</td>
-                <td>{r.pro}{r.ipi && <><br /><span className="ipi">IPI {r.ipi}</span></>}</td><td>{r.credits}</td>
+                <td data-label={COLS[0]}>{r.name}</td><td data-label={COLS[1]}>{r.artist}</td><td data-label={COLS[2]}>{r.role}</td><td data-label={COLS[3]} className="c">{r.pct}</td><td data-label={COLS[4]}>{r.publisher}</td>
+                <td data-label={COLS[5]}>{r.pro}{r.ipi && <><br /><span className="ipi">IPI {r.ipi}</span></>}</td><td data-label={COLS[6]}>{r.credits}</td>
               </tr>
             ))}
           </tbody>

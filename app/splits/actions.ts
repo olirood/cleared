@@ -71,6 +71,19 @@ export async function saveWork(input: WorkInput): Promise<Result> {
   return { id: w.id };
 }
 
+// Obra sin ningún split (raro): empieza la versión 1
+export async function startSplit(workId: string): Promise<Result> {
+  const { sb, user } = await ctx();
+  if (!user) return { error: 'Tu sesión terminó. Vuelve a entrar.' };
+  const { data: w } = await sb.from('works').select('id, workspace_id').eq('id', workId).maybeSingle();
+  if (!w) return { error: 'No encontramos esta obra.' };
+  const { data: ag, error } = await sb.from('split_agreements').insert({ work_id: w.id, version: 1 }).select('id').single();
+  if (error) return { error: explain(error) };
+  await log(sb, w.workspace_id, ag.id, 'created');
+  refresh(workId);
+  return { id: workId };
+}
+
 // Split para un track: crea la obra con los datos del track y la liga
 export async function createTrackSplit(recordingId: string): Promise<Result> {
   const { sb } = await ctx();

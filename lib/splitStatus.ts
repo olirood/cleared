@@ -33,6 +33,7 @@ export function summarize(a: AgreementSummary | undefined, ownerWs: string, repL
   const waiting = reps.filter((r) => r.state !== 'ok').length;
   return {
     label: total === 0 ? `v${a.version} · sin participantes` : sum !== 10000 ? `v${a.version} · suma ${(sum / 100).toFixed(2).replace(/\.00$/, '')} %` : waiting ? `v${a.version} · falta aprobación` : `v${a.version} · listo para enviar`,
-    tone: (total && sum === 10000 && !waiting ? 'info' : 'crit') as 'info' | 'crit', signed, total, reps,
+    // esperar a que otro apruebe no es un error: ámbar; suma mala o sin participantes: rojo
+    tone: (!total || sum !== 10000 ? 'crit' : waiting ? 'warn' : 'info') as 'info' | 'crit' | 'warn', signed, total, reps,
   };
 }

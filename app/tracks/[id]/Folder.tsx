@@ -77,7 +77,7 @@ export default function Folder({ track: r, workspace, assets, urls, canWrite, ca
 
       <div className="folder-grid even">
         <section className="card glass">
-          <header><h2>Split sheet</h2>{split && <span className={`pill ${split.status === 'signed' ? 'ok' : split.status === 'sent' ? 'warn' : ''}`}>{split.label}</span>}</header>
+          <header><h2>Split sheet</h2>{split && <span className={`pill ${split.tone ?? (split.status === 'signed' ? 'ok' : split.status === 'sent' ? 'warn' : '')}`}>{split.label}</span>}</header>
           {r.work_id ? (
             <>
               <p className="muted small">Quién escribió la canción y con qué porcentaje. Se firma por enlace.</p>
@@ -124,7 +124,7 @@ export default function Folder({ track: r, workspace, assets, urls, canWrite, ca
           )}
         </header>
         {handles ? (
-          <p className="muted">La disquera se encarga de lo legal de este track: no se pide WFH{r.track_type === 'feat' || r.track_type === 'collab' ? ' ni waiver' : ''}{r.track_type === 'cover' || r.track_type === 'remix' ? ' ni licencia' : ''}. Aun así puedes guardar documentos abajo.</p>
+          <p className="muted" style={{ marginBottom: 12 }}>La disquera se encarga de lo legal de este track: no se pide WFH{r.track_type === 'feat' || r.track_type === 'collab' ? ' ni waiver' : ''}{r.track_type === 'cover' || r.track_type === 'remix' ? ' ni licencia' : ''}. Aun así puedes guardar documentos abajo.</p>
         ) : null}
         <div className="docs">
           {(handles ? [] : requiredDocs(r)).map((k) => (
