@@ -9,7 +9,7 @@ async function hash(token: string) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
-const validToken = (t: string) => /^[A-Za-z0-9_-]{40,60}$/.test(t);
+const validToken = (t: string) => /^[A-Za-z0-9_-]{20,60}$/.test(t);   // enlaces nuevos: 22; los anteriores: 43
 
 export type SigningView = {
   me: string; my_status: 'pending' | 'signed' | 'void' | 'expired'; signed_at: string | null; email_hint: string | null;

@@ -193,7 +193,8 @@ async function sha256Hex(s: string) {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 function newToken() {
-  const b = crypto.getRandomValues(new Uint8Array(32));
+  // 16 bytes = 128 bits: imposible de adivinar, y para firmar además hace falta el código del correo
+  const b = crypto.getRandomValues(new Uint8Array(16));
   return btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 async function origin() {
@@ -206,7 +207,7 @@ async function issue(sb: SB, participantId: string, base: string) {
   const token = newToken();
   const { error } = await sb.rpc('issue_signature_link', { participant: participantId, token_hash: await sha256Hex(token) });
   if (error) throw error;
-  return `${base}/firmar/${token}`;
+  return `${base}/f/${token}`;
 }
 
 export async function sendSplit(agreementId: string): Promise<Result> {
