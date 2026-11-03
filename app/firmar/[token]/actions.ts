@@ -95,25 +95,5 @@ export async function requestChange(token: string, note: string): Promise<{ erro
   const tokenHash = await hash(token);
   const { error } = await sb.rpc('request_split_change', { token_hash: tokenHash, note: note.trim().slice(0, 1000) });
   if (error) return { error: 'No se pudo enviar. Intenta de nuevo.' };
-  // aviso por correo al equipo que mandó el split (y al que representa al firmante)
-  if (mailConfigured()) {
-    try {
-      const { data } = await sb.rpc('change_notice_recipients', { token_hash: tokenHash, server_key: process.env.CLEARED_SERVER_KEY });
-      const d = data as { signer: string; title: string; workspace: string; work_id: string; to: { email: string; name: string }[] } | null;
-      const h = await headers();
-      const base = `${h.get('x-forwarded-proto') || 'https'}://${h.get('x-forwarded-host') || h.get('host')}`;
-      for (const r of d?.to ?? []) {
-        await sendMail({
-          to: [{ email: r.email, name: r.name || undefined }],
-          subject: `${d!.signer} pidió un cambio en “${d!.title}”`,
-          text: `${d!.signer} pidió un cambio en el split de “${d!.title}” antes de firmar:\n\n“${note.trim()}”\n\nPara corregirlo, abre el split y crea una versión nueva: ${base}/splits/${d!.work_id}\n\nCleared`,
-          html: mailHtml('Pidieron un cambio', `<p style="margin:0 0 12px;line-height:1.5"><b>${esc(d!.signer)}</b> pidió un cambio en el split de <b>“${esc(d!.title)}”</b> antes de firmar:</p>
-<blockquote style="margin:0 0 16px;padding:12px 16px;background:#f2f2f3;border-radius:12px;line-height:1.5">${esc(note.trim())}</blockquote>
-<p style="margin:0 0 16px;line-height:1.5">Para corregirlo, abre el split y crea una versión nueva. Los enlaces anteriores dejan de servir y mandas los nuevos.</p>
-<a href="${base}/splits/${d!.work_id}" style="display:inline-block;background:#111;color:#fff;text-decoration:none;padding:10px 18px;border-radius:999px;font-weight:600">Abrir split</a>`),
-        });
-      }
-    } catch (e) { console.error('[cleared] aviso de cambio falló:', String((e as Error)?.message || e).slice(0, 160)); }
-  }
   return {};
 }

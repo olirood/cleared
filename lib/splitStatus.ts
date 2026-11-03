@@ -4,9 +4,10 @@ export type AgreementSummary = {
   id: string; work_id: string; version: number; status: 'draft' | 'sent' | 'signed' | 'void';
   split_participants: { id: string; person_id: string; share_bp: number; role: string; people: { represented_by: string | null } | null; signatures: { status: string } | { status: string }[] | null }[];
   split_approvals: { workspace_id: string; status: string; participants_sig: string }[];
+  change_requests?: { id: string }[];
 };
 export const SUMMARY_SELECT =
-  'id, work_id, version, status, split_participants(id, person_id, share_bp, role, people(represented_by), signatures(status)), split_approvals(workspace_id, status, participants_sig)';
+  'id, work_id, version, status, split_participants(id, person_id, share_bp, role, people(represented_by), signatures(status)), split_approvals(workspace_id, status, participants_sig), change_requests(id)';
 
 const sigStatus = (s: AgreementSummary['split_participants'][number]['signatures']) =>
   Array.isArray(s) ? s[0]?.status : s?.status;
@@ -26,6 +27,7 @@ export function summarize(a: AgreementSummary | undefined, ownerWs: string) {
     return { ws, state };
   });
   if (a.status === 'signed') return { label: `v${a.version} · firmado`, tone: 'ok' as const, signed, total, reps };
+  if (a.status === 'sent' && a.change_requests?.length) return { label: `v${a.version} · pidieron cambio`, tone: 'crit' as const, signed, total, reps };
   if (a.status === 'sent') return { label: `v${a.version} · ${signed}/${total} firmas`, tone: 'warn' as const, signed, total, reps };
   const waiting = reps.filter((r) => r.state !== 'ok').length;
   return {

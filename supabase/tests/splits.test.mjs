@@ -91,17 +91,3 @@ await as(U.oli, `insert into split_agreements (work_id, version) values ($1,2)`,
 ok('Se crea la versión 2 después de anular');
 await expectErr('Sin sesión no se leen huellas de participantes', () => as(null, `select participants_sig($1)`, [ag]));
 
-// aviso de cambio pedido: a quién le llega
-await db.exec(`update auth.users set email='oli@test' where id='${U.oli}'; update auth.users set email='mar@test' where id='${U.mar}';`);
-const w3 = (await one(U.oli, `insert into works (workspace_id, title) values ($1,'Aviso') returning id`, [W.kevin])).id;
-const ag3 = (await one(U.oli, `insert into split_agreements (work_id, version) values ($1,1) returning id`, [w3])).id;
-await as(U.oli, `insert into split_participants (agreement_id, person_id, role, share_bp) values ($1,$2,'songwriter',5000),($1,$3,'songwriter',5000)`, [ag3, kev, mariana]);
-await as(U.mar, `insert into split_approvals (agreement_id, workspace_id, status, participants_sig) values ($1,$2,'approved',participants_sig($1))`, [ag3, W.apollo]);
-await as(U.oli, `update split_participants set snapshot = jsonb_build_object('legal_name', p.legal_name) from people p where p.id = person_id and agreement_id = $1`, [ag3]);
-await as(U.oli, `update split_agreements set status='sent' where id=$1`, [ag3]);
-const pm3 = (await one(U.oli, `select id from split_participants where agreement_id=$1 and person_id=$2`, [ag3, mariana])).id;
-await as(U.oli, `select issue_signature_link($1,$2)`, [pm3, h('tok-aviso')]);
-const rcp = (await one(null, `select change_notice_recipients($1,$2) r`, [h('tok-aviso'), await KEY()])).r;
-const mails = rcp.to.map((x) => x.email).sort().join(',');
-mails === 'mar@test,oli@test' ? ok('El aviso de cambio le llega a Oliver (dueño) y a Margarita (representa a la firmante)') : bad('destinatarios: ' + mails);
-await expectErr('Sin llave no se obtienen correos del equipo', () => as(null, `select change_notice_recipients($1,'x')`, [h('tok-aviso')]));

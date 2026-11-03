@@ -102,7 +102,7 @@ export default function SignView({ token, view }: { token: string; view: Signing
           </form>
         </section>
       )}
-      {mode === 'sent' && <div className="banner info"><span><b>Listo.</b> Le avisamos a {view.workspace.name}. Cuando lo corrijan te mandarán un enlace nuevo para firmar.</span></div>}
+      {mode === 'sent' && <div className="banner info"><span><b>Listo.</b> {view.workspace.name} ya puede ver tu comentario. Cuando lo corrijan te mandarán un enlace nuevo para firmar.</span></div>}
     </div>
   );
 }

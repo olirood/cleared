@@ -20,7 +20,8 @@ export default async function Home() {
     return { a, w, s: summarize(a, w?.workspace_id ?? '') };
   }).filter((x) => x.w);
   const toApprove = items.filter((x) => x.a.status === 'draft' && x.s.reps.some((r) => mine.has(r.ws) && r.state !== 'ok'));
-  const inSigning = items.filter((x) => x.a.status === 'sent' && mine.has(x.w!.workspace_id));
+  const changed = items.filter((x) => x.a.status === 'sent' && (x.a.change_requests?.length ?? 0) > 0 && mine.has(x.w!.workspace_id));
+  const inSigning = items.filter((x) => x.a.status === 'sent' && !(x.a.change_requests?.length) && mine.has(x.w!.workspace_id));
   const drafts = items.filter((x) => x.a.status === 'draft' && mine.has(x.w!.workspace_id));
   const myWs = (ws.data ?? []).filter((w) => mine.has(w.id));
   const first = memberships.find((m) => m.display_name)?.display_name;
@@ -65,6 +66,7 @@ export default async function Home() {
                 );
               })}
             </section>
+            {changed.length > 0 && <List title="Pidieron un cambio" rows={changed} empty="" />}
             {toApprove.length > 0 && <List title="Te toca aprobar" rows={toApprove} empty="" />}
             <div className="folder-grid even">
               <List title="En firma" rows={inSigning} empty="Ningún split esperando firmas." />
