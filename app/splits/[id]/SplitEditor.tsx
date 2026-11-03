@@ -332,7 +332,7 @@ export default function SplitEditor(props: Props) {
 
       {panel === 'edit' && (
         <Panel title="Datos del split" onClose={() => setPanel(null)}>
-          <WorkForm work={work} workspaces={workspaces} canDelete={['owner', 'admin'].includes(roleIn(work.workspace_id) ?? '')}
+          <WorkForm work={work} workspaces={workspaces} canDelete={['owner', 'admin'].includes(roleIn(work.workspace_id) ?? '')} status={agreements.some((a) => a.status === 'signed') ? 'signed' : current?.status}
             onCancel={() => setPanel(null)} onSaved={() => { setPanel(null); setToast('Guardado'); router.refresh(); }} onDeleted={() => router.push('/splits')} />
         </Panel>
       )}

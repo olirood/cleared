@@ -111,3 +111,14 @@ fin2.sender && fin2.sender.email === 'oli@test' ? ok('El documento final sabe qu
 const bk = (await one(null, `select export_backup($1) b`, [await KEY()])).b;
 bk.people.length > 0 && bk.split_agreements.length > 0 && !JSON.stringify(bk.signatures).includes('token_hash') ? ok('El respaldo trae todo, sin las huellas de enlaces') : bad('respaldo');
 await expectErr('Sin llave no hay respaldo', () => as(U.oli, `select export_backup('x')`));
+
+// borrar un split en firma (cancela la firma); uno firmado no se borra
+const w5 = (await one(U.oli, `insert into works (workspace_id, title) values ($1,'Para borrar') returning id`, [W.kevin])).id;
+const ag5 = (await one(U.oli, `insert into split_agreements (work_id, version) values ($1,1) returning id`, [w5])).id;
+await as(U.oli, `insert into split_participants (agreement_id, person_id, role, share_bp) values ($1,$2,'songwriter',10000)`, [ag5, kev]);
+await as(U.oli, `update split_agreements set status='sent' where id=$1`, [ag5]);
+const p5 = (await one(U.oli, `select id from split_participants where agreement_id=$1`, [ag5])).id;
+await as(U.oli, `select issue_signature_link($1,$2)`, [p5, h('tok-borrar')]);
+const delw = await as(U.oli, `delete from works where id=$1 returning id`, [w5]);
+delw.rows.length === 1 ? ok('El dueño borra un split en firma') : bad('no se borró');
+(await one(null, `select signing_view($1) v`, [h('tok-borrar')])).v === null ? ok('Al borrarlo, su enlace de firma ya no abre nada') : bad('enlace sigue vivo');

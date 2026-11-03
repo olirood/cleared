@@ -106,7 +106,8 @@ export async function linkTrack(recordingId: string, workId: string | null): Pro
 export async function deleteWork(workId: string): Promise<Result> {
   const { sb } = await ctx();
   const { data: ags } = await sb.from('split_agreements').select('status').eq('work_id', workId);
-  if (ags?.some((a) => a.status !== 'draft')) return { error: 'Este split ya se envió a firma y no se puede borrar.' };
+  // uno firmado es un contrato: no se borra (los firmantes ya tienen su copia). En firma sí: se cancela y se borra.
+  if (ags?.some((a) => a.status === 'signed')) return { error: 'Este split ya está firmado por todas las partes y no se puede borrar. Si hay un error, crea una versión nueva.' };
   const { data, error } = await sb.from('works').delete().eq('id', workId).select('id');
   if (error) return { error: explain(error) };
   if (!data?.length) return { error: 'Solo la administración del espacio puede borrar splits.' };

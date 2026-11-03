@@ -3,8 +3,8 @@ import { useState, useTransition } from 'react';
 import type { Work } from '@/lib/splits';
 import { deleteWork, saveWork, type WorkInput } from './actions';
 
-export default function WorkForm({ work, workspaces, canDelete, onSaved, onDeleted, onCancel }: {
-  work?: Work; workspaces: { id: string; name: string }[]; canDelete?: boolean;
+export default function WorkForm({ work, workspaces, canDelete, status, onSaved, onDeleted, onCancel }: {
+  work?: Work; workspaces: { id: string; name: string }[]; canDelete?: boolean; status?: string;
   onSaved: (id: string) => void; onDeleted?: () => void; onCancel: () => void;
 }) {
   const [f, setF] = useState<WorkInput>({
@@ -39,11 +39,12 @@ export default function WorkForm({ work, workspaces, canDelete, onSaved, onDelet
             <textarea rows={2} value={f.notes} onChange={(e) => set('notes', e.target.value)} /></label>
         </div>
       </fieldset>
+      {armed && status === 'sent' && <p className="small muted" style={{ marginTop: 12 }}>Los enlaces de firma dejan de servir y se borra el split con todas sus versiones. Quien ya firmó no recibe aviso.</p>}
       <p className="err" role="alert">{err}</p>
       <footer>
-        {work && canDelete ? <button type="button" className={`btn danger${armed ? ' armed' : ''}`} disabled={pending}
+        {work && canDelete && status !== 'signed' ? <button type="button" className={`btn danger${armed ? ' armed' : ''}`} disabled={pending}
           onClick={() => { if (!armed) return setArmed(true); start(async () => { const r = await deleteWork(work.id); if (r.error) { setErr(r.error); setArmed(false); } else onDeleted?.(); }); }}>
-          {armed ? 'Confirmar: borrar split' : 'Borrar split'}</button> : <span />}
+          {armed ? (status === 'sent' ? 'Confirmar: cancelar firma y borrar' : 'Confirmar: borrar split') : status === 'sent' ? 'Cancelar firma y borrar' : 'Borrar split'}</button> : <span />}
         <div className="row">
           <button type="button" className="btn" onClick={onCancel}>Cancelar</button>
           <button className="btn primary" disabled={pending}>{pending ? 'Guardando…' : work ? 'Guardar' : 'Crear split'}</button>
