@@ -63,7 +63,7 @@ export default function Directory({ people, workspaces, memberships, reps, start
               <tbody>
                 {list.map((p) => {
                   const m = missing(p);
-                  const sub = [p.credit_name, !mine(p) ? `De ${wsName(p.owner_workspace_id)}` : '', !p.shared ? 'Solo su espacio' : ''].filter(Boolean).join(' · ');
+                  const sub = [p.credit_name, !mine(p) ? `De ${repLabel(reps, p.owner_workspace_id, wsName(p.owner_workspace_id))}` : '', !p.shared ? 'Solo su espacio' : ''].filter(Boolean).join(' · ');
                   return (
                     <tr key={p.id} tabIndex={0} onClick={() => setOpen(p)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(p); } }}>
                       <td>
@@ -214,7 +214,8 @@ export function ProfilePanel({ person, people, workspaces, memberships, onClose,
           )}
           <fieldset className="plain" disabled={!canEdit || pending}>
             <div className="stack">
-              {!person && writable.length > 1 && (
+              {/* solo si sus espacios los operan personas distintas; si es la misma gente (Kevin y Octavio = Oliver) da igual cuál */}
+              {!person && writable.length > 1 && !repList.some((r) => writable.every((m) => r.ids.includes(m.workspace_id))) && (
                 <label className="f"><span>Lo das de alta en <span className="hint">tu espacio que lo administra</span></span>
                   <select value={f.owner_workspace_id} onChange={(e) => set('owner_workspace_id', e.target.value)}>
                     {writable.map((m) => <option key={m.workspace_id} value={m.workspace_id}>{wsName(m.workspace_id)}</option>)}
