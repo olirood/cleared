@@ -1,23 +1,17 @@
 import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
-import { supabaseServer } from '@/lib/supabase/server';
+import { requireSession } from '@/lib/session';
 import TopBar from '../components/TopBar';
 import PasswordForm from './form';
 import ThemePicker, { type Theme } from './ThemePicker';
+import { AccountForm, OtherSessions } from './AccountForm';
 
 const ROLE: Record<string, string> = { owner: 'Dueño', admin: 'Administración', operator: 'Operación', viewer: 'Solo lectura' };
 
 export const metadata = { title: 'Cuenta · Cleared' };
 
 export default async function Cuenta() {
-  const sb = await supabaseServer();
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) redirect('/login');
-  const [{ data }, { data: ws }] = await Promise.all([
-    sb.from('memberships').select('workspace_id, role, display_name').eq('user_id', user.id).order('created_at'),
-    sb.from('workspaces').select('id, name'),
-  ]);
-  const name = data?.find((m) => m.display_name)?.display_name || user.email || '';
+  const { sb, user, memberships: data, name, color } = await requireSession();
+  const { data: ws } = await sb.from('workspaces').select('id, name');
   const t = (await cookies()).get('cleared-theme')?.value;
   const theme: Theme = t === 'light' || t === 'dark' ? t : 'auto';
   return (
@@ -25,10 +19,13 @@ export default async function Cuenta() {
       <TopBar name={name} />
       <main className="wrap stack">
         <div>
-          <p className="eyebrow">Cuenta</p>
           <h1>{name}</h1>
           <p className="muted">{user.email}</p>
         </div>
+        <section className="card glass">
+          <header><h2>Tu perfil</h2></header>
+          <AccountForm name={name === user.email ? '' : name} color={color} />
+        </section>
         <section className="card glass">
           <header><h2>Apariencia</h2></header>
           <ThemePicker initial={theme} />
@@ -44,6 +41,10 @@ export default async function Cuenta() {
         <section className="card glass">
           <header><h2>Contraseña</h2></header>
           <PasswordForm />
+        </section>
+        <section className="card glass">
+          <header><h2>Sesiones</h2></header>
+          <OtherSessions />
         </section>
       </main>
     </>

@@ -41,3 +41,20 @@ await as(OLI, `insert into invitations (workspace_id, email, role, invited_by) v
 (await mine(EXT)) === 'kevin:viewer' ? ok('Invitar a una cuenta existente le da acceso al momento') : bad('Invitación a cuenta existente: ' + await mine(EXT));
 const viewerWrite = await as(EXT, `insert into works (workspace_id, title) values ($1,'x')`, [W.kevin]).then(() => 'escribió', () => 'bloqueado');
 viewerWrite === 'bloqueado' ? ok('Quien solo puede ver no escribe') : bad('Viewer escribió');
+
+// tu cuenta: nombre visible y color, solo lo tuyo
+{
+  const { db: d2, ws: W2, as: as2, ok: ok2, bad: bad2, expectErr: ee2 } = await setupDb();
+  const A = '00000000-0000-0000-0000-0000000000a1', B = '00000000-0000-0000-0000-0000000000b1';
+  await d2.exec(`set session_replication_role = replica;
+    insert into auth.users values ('${A}','a@test'),('${B}','b@test');
+    set session_replication_role = origin;
+    insert into memberships (workspace_id, user_id, role, display_name) values ('${W2.kevin}','${A}','owner','A'),('${W2.octavio}','${A}','owner','A'),('${W2.kevin}','${B}','operator','B');`);
+  await as2(A, `select set_my_account('Oliver R.', '#30A46C')`);
+  const mine = (await as2(A, `select distinct display_name, avatar_color from memberships where user_id=$1`, [A])).rows;
+  mine.length === 1 && mine[0].display_name === 'Oliver R.' && mine[0].avatar_color === '#30A46C' ? ok2('Cambias tu nombre visible y color en todos tus espacios') : bad2('cuenta: ' + JSON.stringify(mine));
+  (await as2(A, `select display_name from memberships where user_id=$1`, [B])).rows[0].display_name === 'B' ? ok2('No cambia el nombre de nadie más') : bad2('tocó a otro');
+  await ee2('Nombre vacío no se guarda', () => as2(A, `select set_my_account('  ', null)`));
+  await ee2('Color raro no se guarda', () => as2(A, `select set_my_account('Oliver', 'red; drop')`));
+  await ee2('Sin sesión no se cambia nada', () => as2(null, `select set_my_account('X', null)`));
+}
