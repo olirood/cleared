@@ -22,6 +22,8 @@ export async function middleware(request: NextRequest) {
   const isLogin = request.nextUrl.pathname.startsWith('/login');
   // la página de firma es pública: el enlace único es la llave
   if (request.nextUrl.pathname.startsWith('/firmar/')) return response;
+  // el respaldo se protege con la llave del servidor, no con sesión
+  if (request.nextUrl.pathname === '/api/backup') return response;
   if (!user && !isLogin) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';

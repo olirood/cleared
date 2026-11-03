@@ -33,6 +33,7 @@ export type Snapshot = {
 export type Agreement = {
   id: string; work_id: string; version: number; status: 'draft' | 'sent' | 'signed' | 'void';
   template: string | null; sent_at: string | null; completed_at: string | null; content_sha256: string | null; created_at: string;
+  final_pdf_key?: string | null;
 };
 export type Participant = {
   id: string; agreement_id: string; person_id: string; role: Role; share_bp: number; credits: string | null;

@@ -12,7 +12,7 @@ import Panel, { Toast } from '../../components/Panel';
 import Letter from '../../components/Letter';
 import { ProfilePanel } from '../../directorio/Directory';
 import WorkForm from '../WorkForm';
-import { addParticipant, decide, equalize, issueLink, newVersion, removeParticipant, resendFinal, sendSplit, updateParticipant } from '../actions';
+import { addParticipant, decide, ensureArchived, equalize, issueLink, newVersion, removeParticipant, resendFinal, sendSplit, updateParticipant } from '../actions';
 
 type Log = { id: number; action: string; detail: Record<string, unknown> | null; at: string; entity_id: string; workspace_id: string | null };
 type Props = {
@@ -38,6 +38,8 @@ export default function SplitEditor(props: Props) {
   const [note, setNote] = useState<{ ws: string; text: string } | null>(null);
   const [armed, setArmed] = useState('');
   useEffect(() => { if (!toast) return; const id = setTimeout(() => setToast(''), 2800); return () => clearTimeout(id); }, [toast]);
+  // guarda el PDF firmado la primera vez que se abre (y lo agrega a sus tracks)
+  useEffect(() => { if (current?.status === 'signed') ensureArchived(work.id).then(() => { if (!current.final_pdf_key) router.refresh(); }); }, [current?.status, current?.final_pdf_key, work.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const roleIn = (ws: string | null) => memberships.find((m) => m.workspace_id === ws)?.role;
   const writer = (ws: string | null) => ['owner', 'admin', 'operator'].includes(roleIn(ws) ?? '');

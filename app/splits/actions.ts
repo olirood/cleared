@@ -5,7 +5,7 @@ import { supabaseServer } from '@/lib/supabase/server';
 import { ROLES, canonical, equalShares, type Snapshot } from '@/lib/splits';
 import { mailConfigured } from '@/lib/mail';
 import { artistLine } from '@/lib/tracks';
-import { sendFinalDocument } from '@/lib/finalMail';
+import { buildFinalPdf, sendFinalDocument, type FinalDoc } from '@/lib/finalMail';
 
 export type Result = { error?: string; id?: string; links?: Record<string, string>; link?: string };
 type PgErr = { code?: string; message?: string };
@@ -292,5 +292,41 @@ export async function resendFinal(agreementId: string): Promise<Result> {
   if (error || !data) return { error: 'No se pudo armar el documento.' };
   try { await sendFinalDocument(data); } catch (e) { const d = String((e as Error)?.message || e).slice(0, 160); console.error('[cleared] reenvío falló:', d); return { error: `No se pudo mandar el correo${d.match(/smtp (\d{3})/) ? ` (servidor de correo: ${d.match(/smtp (\d{3})/)![1]})` : ''}.` }; }
   await log(sb, a.workspace_id, agreementId, 'final_sent');
+  return {};
+}
+
+// Guarda el PDF firmado en el almacén del espacio y lo agrega a la carpeta de cada track ligado.
+// Lo genera el servidor con los datos congelados; se llama al abrir un split firmado o su track.
+export async function ensureArchived(workId: string): Promise<Result> {
+  const { sb, user } = await ctx();
+  if (!user || !process.env.CLEARED_SERVER_KEY) return {};
+  const { data: ag } = await sb.from('split_agreements').select('id, version, status, final_pdf_key, final_pdf_sha256, works(workspace_id, title)')
+    .eq('work_id', workId).eq('status', 'signed').maybeSingle();
+  if (!ag) return {};
+  const w = ag.works as unknown as { workspace_id: string; title: string };
+  let key = ag.final_pdf_key as string | null, sha = ag.final_pdf_sha256 as string | null, size = 0, fileName = '';
+  if (!key) {
+    const { data, error } = await sb.rpc('completed_document_for', { agreement: ag.id, server_key: process.env.CLEARED_SERVER_KEY });
+    if (error || !data) return {};
+    const { bytes, name } = await buildFinalPdf(data as FinalDoc);
+    sha = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map((b) => b.toString(16).padStart(2, '0')).join('');
+    key = `${w.workspace_id}/splits/${ag.id}.pdf`;
+    const up = await sb.storage.from('cleared').upload(key, bytes, { contentType: 'application/pdf', upsert: false });
+    if (up.error && !/exists|duplicate/i.test(up.error.message)) return {};   // sin permiso de escritura: lo hará alguien que sí tenga
+    const { error: e2 } = await sb.from('split_agreements').update({ final_pdf_key: key, final_pdf_sha256: sha }).eq('id', ag.id);
+    if (e2) return {};
+    size = bytes.length; fileName = name;
+  }
+  // en la carpeta de cada track ligado a esta obra
+  const { data: recs } = await sb.from('recordings').select('id').eq('work_id', workId);
+  for (const r of recs ?? []) {
+    const { count } = await sb.from('assets').select('id', { count: 'exact', head: true }).eq('recording_id', r.id).eq('storage_key', key);
+    if (!count) {
+      await sb.from('assets').insert({
+        recording_id: r.id, kind: 'other_doc', storage_key: key, file_name: fileName || `Split ${w.title} v${ag.version} firmado.pdf`,
+        label: `Split firmado v${ag.version}`, mime: 'application/pdf', sha256: sha, size_bytes: size || null,
+      });
+    }
+  }
   return {};
 }

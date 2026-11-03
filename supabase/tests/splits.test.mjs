@@ -103,3 +103,11 @@ const ag4 = (await one(U.oli, `insert into split_agreements (work_id, version) v
 await as(U.oli, `insert into split_participants (agreement_id, person_id, role, share_bp) values ($1,$2,'songwriter',10000)`, [ag4, kevRep]);
 await as(U.oli, `update split_agreements set status='sent' where id=$1`, [ag4]);
 ok('Oliver manda en Octavio un split con alguien que él mismo representa en Kevin, sin aprobarse a sí mismo');
+
+// copia para quien envió y respaldo
+await as(U.oli, `insert into audit_events (workspace_id, entity, entity_id, action, actor) values ($1,'split',$2,'sent',auth.uid())`, [W.kevin, ag]);
+const fin2 = (await one(null, `select completed_document_for($1,$2) d`, [ag, await KEY()])).d;
+fin2.sender && fin2.sender.email === 'oli@test' ? ok('El documento final sabe quién envió el split (le llega copia)') : bad('sender: ' + JSON.stringify(fin2.sender));
+const bk = (await one(null, `select export_backup($1) b`, [await KEY()])).b;
+bk.people.length > 0 && bk.split_agreements.length > 0 && !JSON.stringify(bk.signatures).includes('token_hash') ? ok('El respaldo trae todo, sin las huellas de enlaces') : bad('respaldo');
+await expectErr('Sin llave no hay respaldo', () => as(U.oli, `select export_backup('x')`));

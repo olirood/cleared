@@ -11,7 +11,7 @@ import Panel, { Toast } from '../../components/Panel';
 import TrackForm from '../TrackForm';
 import { Thumb } from '../TrackList';
 import { addLink, recordFile, removeAsset, setDocStatus, setLegal } from '../actions';
-import { createTrackSplit, linkTrack } from '../../splits/actions';
+import { createTrackSplit, ensureArchived, linkTrack } from '../../splits/actions';
 
 type Props = {
   track: Recording; workspace: WorkspaceLegal; assets: Asset[]; urls: Record<string, string>; canWrite: boolean; canDelete: boolean;
@@ -32,6 +32,8 @@ export default function Folder({ track: r, workspace, assets, urls, canWrite, ca
   });
 
   const items = checklist(r, assets, workspace, split, labelCopy);
+  const archived = assets.some((a) => a.storage_key?.includes('/splits/'));
+  useEffect(() => { if (split?.status === 'signed' && r.work_id && !archived) ensureArchived(r.work_id).then(() => router.refresh()); }, [split?.status, r.work_id, archived]); // eslint-disable-line react-hooks/exhaustive-deps
   const miss = missingOf(items);
   const cover = assets.find((a) => a.kind === 'cover');
   const handles = labelHandles(r, workspace);

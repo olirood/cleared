@@ -84,7 +84,7 @@ export async function deleteTrack(id: string): Promise<Result> {
   const { data, error } = await sb.from('recordings').delete().eq('id', id).select('id');
   if (error) return { error: explain(error) };
   if (!data?.length) return { error: 'Solo la administración del espacio puede borrar tracks.' };
-  const keys = (files ?? []).flatMap((f) => [f.storage_key, f.thumb_key]).filter(Boolean) as string[];
+  const keys = (files ?? []).flatMap((f) => [f.storage_key, f.thumb_key]).filter((k): k is string => !!k && !k.includes('/splits/'));
   if (keys.length) await sb.storage.from('cleared').remove(keys);
   refresh();
   return {};
@@ -178,7 +178,8 @@ export async function removeAsset(id: string): Promise<Result> {
   if (error) return { error: explain(error) };
   const a = data?.[0];
   if (!a) return { error: 'No tienes permiso para quitar este archivo.' };
-  const keys = [a.storage_key, a.thumb_key].filter(Boolean) as string[];
+  // el PDF de un split firmado vive en /splits/ y no se borra al quitarlo de un track
+  const keys = [a.storage_key, a.thumb_key].filter((k): k is string => !!k && !k.includes('/splits/'));
   if (keys.length) await sb.storage.from('cleared').remove(keys);
   if (a.kind === 'wfh' || a.kind === 'waiver' || a.kind === 'license') {
     const { count } = await sb.from('assets').select('id', { count: 'exact', head: true }).eq('recording_id', a.recording_id).eq('kind', a.kind);

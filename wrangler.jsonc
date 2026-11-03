@@ -1,11 +1,13 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "cleared",
-  "main": ".open-next/worker.js",
+  "main": "worker.ts",
   "workers_dev": true,
   "preview_urls": false,
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
+  // respaldo mensual: día 1 a las 9:00 de CDMX (15:00 UTC)
+  "triggers": { "crons": ["0 15 1 * *"] }
 }
