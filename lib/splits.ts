@@ -11,7 +11,7 @@ export const ROLE_EN: Record<string, string> = {
   songwriter: 'Lyricist & Composer', lyricist: 'Lyricist', composer: 'Composer', arranger: 'Arranger',
 };
 
-export const CONSENT_V = 'consentimiento-electronico-v1';
+export { AVISO_V as CONSENT_V } from './aviso';   // versión del aviso que acepta quien firma
 
 export const fmtPct = (bp: number) => (bp / 100).toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
 export function parsePct(s: string): number | null {

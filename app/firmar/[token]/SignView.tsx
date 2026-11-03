@@ -3,6 +3,8 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Letter from '../../components/Letter';
 import SignaturePad from '../../components/SignaturePad';
+import Panel from '../../components/Panel';
+import { AVISO_CONFIRM, AVISO_LABEL, AVISO_TITLE, avisoPdf, avisoSections } from '@/lib/aviso';
 import { downloadBlob, fileSafe, letterPdf, rowFrom, type LetterModel } from '@/lib/letter';
 import { fmtPct, fmtDateTime, ROLES } from '@/lib/splits';
 import { requestChange, requestCode, sign, type SigningView } from './actions';
@@ -18,6 +20,11 @@ export default function SignView({ token, view }: { token: string; view: Signing
   const [mode, setMode] = useState<'sign' | 'change' | 'sent'>('sign');
   const [sigMode, setSigMode] = useState<'name' | 'draw'>('name');
   const [drawing, setDrawing] = useState<string | null>(null);
+  // primero se acepta el aviso (como DocuSign); luego aparecen los pasos
+  const [agree, setAgree] = useState(false);
+  const [accepted, setAccepted] = useState(false);
+  const [aviso, setAviso] = useState(false);
+  const avisoDl = () => start(async () => downloadBlob(await avisoPdf(view.workspace.name), 'Aviso de firma electronica.pdf'));
   const [note, setNote] = useState('');
   const [pending, start] = useTransition();
   const me = view.participants.find((p) => p.id === view.me)!;
@@ -58,7 +65,21 @@ export default function SignView({ token, view }: { token: string; view: Signing
 
       {!closed && view.my_status === 'pending' && mode === 'sign' && (
         <section className="card glass">
-          <header><h2>Firmar</h2></header>
+          <header><h2>Firmar</h2>{accepted && <button type="button" className="linkish small" onClick={() => setAviso(true)}>Ver aviso</button>}</header>
+          {!accepted ? (
+            <div className="gate">
+              <b>Antes de firmar</b>
+              <p className="muted small">Lee el <button type="button" className="linkish" onClick={() => setAviso(true)}>{AVISO_TITLE}</button>: cómo funciona tu firma, cómo obtener tus copias, qué hacer si prefieres papel y cómo se usan tus datos.</p>
+              <label className="consent">
+                <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
+                <span>Acepto usar documentos y firmas electrónicas, y el uso de mis datos descrito en el aviso.</span>
+              </label>
+              <div className="row spread">
+                <button type="button" className="btn" onClick={() => { setErr(''); setMode('change'); }}>Pedir un cambio</button>
+                <button type="button" className="btn primary" disabled={!agree} onClick={() => setAccepted(true)}>Continuar</button>
+              </div>
+            </div>
+          ) : (
           <form className="stack" onSubmit={(e) => { e.preventDefault(); setErr(''); start(async () => { const r = await sign(token, code, name, consent, sigMode === 'draw' ? drawing : null); if (r.error) setErr(r.error); else router.refresh(); }); }}>
             <div className="code-step">
               <div>
@@ -90,7 +111,7 @@ export default function SignView({ token, view }: { token: string; view: Signing
             </div>
             <label className="consent">
               <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-              <span>Leí la carta y acepto firmarla por medios electrónicos. {sigMode === 'draw' ? 'Mi firma dibujada y mi nombre escrito' : 'Mi nombre escrito'}, junto con este enlace personal, la fecha, la hora y mi dirección IP, valen como mi firma (Código de Comercio, arts. 89 a 93).</span>
+              <span>Leí la carta y la firmo. {sigMode === 'draw' ? 'Mi firma dibujada y mi nombre escrito' : 'Mi nombre escrito'}, junto con este enlace personal, la fecha, la hora y mi dirección IP, valen como mi firma (Código de Comercio, arts. 89 a 93).</span>
             </label>
             {err && <p className="form-msg crit" role="alert">{err}</p>}
             <div className="row spread">
@@ -98,6 +119,7 @@ export default function SignView({ token, view }: { token: string; view: Signing
               <button className="btn primary" disabled={pending || !consent || !name.trim() || code.length !== 6 || (sigMode === 'draw' && !drawing)}>{pending ? 'Firmando…' : 'Firmar'}</button>
             </div>
           </form>
+          )}
         </section>
       )}
       {!closed && view.my_status === 'pending' && mode === 'change' && (
@@ -106,6 +128,7 @@ export default function SignView({ token, view }: { token: string; view: Signing
           <form className="stack" onSubmit={(e) => { e.preventDefault(); setErr(''); start(async () => { const r = await requestChange(token, note); if (r.error) setErr(r.error); else setMode('sent'); }); }}>
             <label className="f">Qué hay que cambiar
               <textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ej. Mi IPI está mal, o mi porcentaje es otro" required />
+              <button type="button" className="linkish small" style={{ alignSelf: 'flex-start' }} onClick={() => setNote('Prefiero firmar en papel, no de forma electrónica.')}>Prefiero firmar en papel</button>
             </label>
             {err && <p className="form-msg crit" role="alert">{err}</p>}
             <div className="row spread">
@@ -114,6 +137,20 @@ export default function SignView({ token, view }: { token: string; view: Signing
             </div>
           </form>
         </section>
+      )}
+      {aviso && (
+        <Panel title={AVISO_TITLE} onClose={() => setAviso(false)}>
+          <div className="aviso">
+            <p className="muted small">{view.workspace.name} · Cleared · {AVISO_LABEL}</p>
+            {avisoSections(view.workspace.name).map((x) => <section key={x.h}><h3>{x.h}</h3><p>{x.p}</p></section>)}
+            <section><h3>Al aceptar confirmo que</h3><ul>{AVISO_CONFIRM.map((c) => <li key={c}>{c}</li>)}</ul></section>
+            <div className="row">
+              <button type="button" className="btn" onClick={avisoDl} disabled={pending}>Descargar PDF</button>
+              <button type="button" className="btn" onClick={() => window.print()}>Imprimir</button>
+              {!accepted && <button type="button" className="btn primary" onClick={() => { setAgree(true); setAviso(false); }}>Lo leí</button>}
+            </div>
+          </div>
+        </Panel>
       )}
       {mode === 'sent' && <div className="banner info"><span><b>Listo.</b> {view.workspace.name} ya puede ver tu comentario. Cuando lo corrijan te mandarán un enlace nuevo para firmar.</span></div>}
     </div>

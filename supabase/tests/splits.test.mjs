@@ -133,3 +133,7 @@ delw.rows.length === 1 ? ok('El dueño borra un split en firma') : bad('no se bo
 // copia final a quien aprobó por el espacio que representa
 const fin3 = (await one(null, `select completed_document_for($1,$2) d`, [ag, await KEY()])).d;
 fin3.approvers.some((a) => a.email === 'mar@test' && a.workspace === 'Apollo Music') ? ok('El documento final incluye a Margarita, que aprobó por Apollo (le llega copia)') : bad('approvers: ' + JSON.stringify(fin3.approvers));
+
+// el documento final dice qué aviso aceptó cada quien
+const fin4 = (await one(null, `select completed_document_for($1,$2) d`, [ag, await KEY()])).d;
+fin4.participants.every((p) => 'consent_version' in p) && fin4.participants.some((p) => p.consent_version === 'v1') ? ok('El documento final trae la versión del aviso aceptado por cada firmante') : bad('consent: ' + JSON.stringify(fin4.participants.map((p) => p.consent_version)));

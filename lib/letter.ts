@@ -1,5 +1,6 @@
 // Carta de split: el mismo modelo arma la vista en pantalla y el PDF
 import { ROLE_EN, fmtPct, fmtDateTime } from './splits';
+import { AVISO_CONFIRM, AVISO_LABEL, AVISO_TITLE, AVISO_V, avisoSections } from './aviso';
 
 export const LETTER = {
   title: 'Songwriters’ Split Letter',
@@ -24,6 +25,7 @@ export type LetterRow = {
   name: string; artist: string; role: string; pct: string; publisher: string; pro: string; ipi: string; credits: string;
   signed: boolean; signedAt: string | null; typedName: string | null; method: string | null; ip: string | null; contact: string;
   sigImage: string | null;   // firma dibujada (PNG), si la dibujó
+  consent: string | null;    // versión del aviso que aceptó
 };
 export type LetterModel = {
   title: string; artist: string; version: number; status: string; date: string; template: string; workspace: string;
@@ -36,7 +38,7 @@ const PRO_EN: Record<string, string> = { Ninguna: 'None', Otra: 'Other' };
 export function rowFrom(p: {
   role: string; share_bp: number; credits: string | null;
   snap: { legal_name?: string | null; credit_name?: string | null; publisher?: string | null; pro?: string | null; ipi?: string | null; email?: string | null; phone?: string | null };
-  sig?: { status?: string; signed_at?: string | null; typed_name?: string | null; method?: string | null; ip?: string | null; signature_png?: string | null } | null;
+  sig?: { status?: string; signed_at?: string | null; typed_name?: string | null; method?: string | null; ip?: string | null; signature_png?: string | null; consent_version?: string | null } | null;
 }): LetterRow {
   const s = p.snap;
   return {
@@ -45,6 +47,7 @@ export function rowFrom(p: {
     signed: p.sig?.status === 'signed', signedAt: p.sig?.signed_at ?? null, typedName: p.sig?.typed_name ?? null,
     method: p.sig?.method ?? null, ip: p.sig?.ip ?? null, contact: s.phone || s.email || '',
     sigImage: p.sig?.status === 'signed' && p.sig?.signature_png?.startsWith('data:image/png;base64,') ? p.sig.signature_png : null,
+    consent: p.sig?.status === 'signed' ? p.sig?.consent_version ?? null : null,
   };
 }
 
@@ -269,7 +272,7 @@ export async function letterPdf(m: LetterModel, logoOverride?: string | null): P
         ['Verificación', r.method || 'Enlace único'] as [string, string],
         ['Nombre escrito', r.typedName || ''] as [string, string],
         ...(r.ip ? [['Dirección IP', r.ip] as [string, string]] : []),
-        ['Consentimiento', 'Aceptó firmar por medios electrónicos.'] as [string, string],
+        ['Consentimiento', r.consent === AVISO_V ? `Aceptó el ${AVISO_TITLE} (anexo) y firmar por medios electrónicos.` : 'Aceptó firmar por medios electrónicos.'] as [string, string],
       ] : []),
     ];
     ensure(30 + rows.length * 17);
@@ -291,6 +294,20 @@ export async function letterPdf(m: LetterModel, logoOverride?: string | null): P
       font('normal', 8.4, INK); doc.text(ls, M + 130, y + 8, { lineHeightFactor: 1.3 });
       y += ls.length * 11 + 6;
     });
+  }
+
+  // anexo: el aviso que aceptaron, tal cual
+  if (m.rows.some((r) => r.consent === AVISO_V)) {
+    newPage();
+    font('bold', 17, INK); doc.text(AVISO_TITLE, M, y + 6); y += 20;
+    font('normal', 8.5, MUTED); doc.text(`Anexo · ${AVISO_LABEL} · aceptado por quienes firmaron con esta versión`, M, y + 6); y += 26;
+    for (const x of avisoSections(m.workspace)) {
+      ensure(40);
+      font('bold', 10, INK); doc.text(x.h, M, y + 8); y += 16;
+      para([[x.p, 'normal']], { size: 9.2, gap: 10 });
+    }
+    ensure(30); font('bold', 10, INK); doc.text('Al aceptar confirmaron que', M, y + 8); y += 16;
+    for (const c of AVISO_CONFIRM) para([['•  ' + c, 'normal']], { size: 9.2, gap: 2 });
   }
 
   // pie de página
