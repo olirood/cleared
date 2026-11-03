@@ -50,3 +50,5 @@ const vUpd = await as(VIEW, `update recordings set title='x' returning 1`);
 vDelRec.rows.length + vDelAs.rows.length + vUpd.rows.length === 0 ? ok('Quien solo ve no borra ni edita tracks ni archivos') : bad('viewer modificó');
 const vObj = await as(VIEW, `delete from storage.objects returning 1`);
 vObj.rows.length === 0 ? ok('Quien solo ve no borra archivos del almacén') : bad('viewer borró del almacén');
+await as(U.oli, `insert into recordings (workspace_id, title, track_type, featured_artists) values ($1,'Colab','collab','Gabriel SSoe')`, [W.kevin]);
+ok('Se puede registrar un track de colaboración');

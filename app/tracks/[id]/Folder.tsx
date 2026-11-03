@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   checklist, docLabel, docStatus, fmtDate, fmtSize, isWeTransfer, labelHandles, missingOf, requiredDocs,
-  LINK_KINDS, TRACK_TYPES, type Asset, type DocKind, type Recording, type SplitState, type WorkspaceLegal,
+  LINK_KINDS, TRACK_TYPES, artistLine, type Asset, type DocKind, type Recording, type SplitState, type WorkspaceLegal,
 } from '@/lib/tracks';
 import { MAX_BYTES, makeThumb, sha256, uploadToFolder } from '@/lib/upload';
 import Panel, { Toast } from '../../components/Panel';
@@ -35,7 +35,7 @@ export default function Folder({ track: r, workspace, assets, urls, canWrite, ca
   const miss = missingOf(items);
   const cover = assets.find((a) => a.kind === 'cover');
   const handles = labelHandles(r, workspace);
-  const artistLine = [r.main_artist, r.featured_artists && `feat. ${r.featured_artists.split(';').map((s) => s.trim()).join(', ')}`].filter(Boolean).join(' ');
+  const artists = artistLine(r);
 
   return (
     <div className="stack">
@@ -46,10 +46,10 @@ export default function Folder({ track: r, workspace, assets, urls, canWrite, ca
         <div className="fh-main">
           <p className="eyebrow">{workspace.name} · {TRACK_TYPES[r.track_type]}</p>
           <h1>{r.title}{r.version_title && <span className="muted"> ({r.version_title})</span>}</h1>
-          <p className="muted">{artistLine || 'Sin artista'}</p>
+          <p className="muted">{artists || 'Sin artista'}</p>
           <div className="row" style={{ marginTop: 8 }}>
             {miss.length ? <span className="pill crit">Faltan {miss.length}</span> : <span className="pill ok">Listo para entregar</span>}
-            {r.release_date && <span className="pill">{fmtDate(r.release_date)}</span>}
+            <span className="pill">{r.release_date ? fmtDate(r.release_date) : 'Fecha pendiente'}</span>
             {r.release_title && <span className="pill">{r.release_type ? `${r.release_type}: ` : ''}{r.release_title}</span>}
             {r.isrc && <span className="pill mono">{r.isrc}</span>}
           </div>
@@ -119,7 +119,7 @@ export default function Folder({ track: r, workspace, assets, urls, canWrite, ca
           )}
         </header>
         {handles ? (
-          <p className="muted">La disquera se encarga de lo legal{r.label_handles_legal === null ? ` en ${workspace.name}` : ' en este track'}: no se pide WFH{r.track_type === 'feat' ? ' ni waiver' : ''}{r.track_type === 'cover' || r.track_type === 'remix' ? ' ni licencia' : ''}. Aun así puedes guardar documentos abajo.</p>
+          <p className="muted">La disquera se encarga de lo legal{r.label_handles_legal === null ? ` en ${workspace.name}` : ' en este track'}: no se pide WFH{r.track_type === 'feat' || r.track_type === 'collab' ? ' ni waiver' : ''}{r.track_type === 'cover' || r.track_type === 'remix' ? ' ni licencia' : ''}. Aun así puedes guardar documentos abajo.</p>
         ) : null}
         <div className="docs">
           {(handles ? [] : requiredDocs(r)).map((k) => (

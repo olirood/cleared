@@ -2,7 +2,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { checklist, fmtDate, missingOf, TRACK_TYPES, type Asset, type Recording, type SplitState, type WorkspaceLegal } from '@/lib/tracks';
+import { artistLine, checklist, fmtDate, missingOf, TRACK_TYPES, type Asset, type Recording, type SplitState, type WorkspaceLegal } from '@/lib/tracks';
 import type { Member } from '@/lib/session';
 import Panel from '../components/Panel';
 import TrackForm from './TrackForm';
@@ -60,12 +60,12 @@ export default function TrackList({ recordings, assets, thumbs, workspaces, memb
                     <div className="tmain">
                       <strong>{r.title}{r.version_title && <span className="muted"> ({r.version_title})</span>}</strong>
                       <div className="muted small">
-                        {[r.main_artist + (r.featured_artists ? ` feat. ${r.featured_artists.split(';').map((s) => s.trim()).join(', ')}` : ''), TRACK_TYPES[r.track_type], r.release_title].filter(Boolean).join(' · ')}
+                        {[artistLine(r), TRACK_TYPES[r.track_type], r.release_title].filter(Boolean).join(' · ')}
                       </div>
                     </div>
                     <div className="tmeta small">
                       {workspaces.length > 1 && <div>{wsOf(r.workspace_id)?.name}</div>}
-                      <div className="muted">{r.release_date ? fmtDate(r.release_date) : 'Sin fecha'}</div>
+                      <div className="muted">{r.release_date ? fmtDate(r.release_date) : 'Fecha pendiente'}</div>
                     </div>
                     <div className="tstate">
                       {miss.length ? <span className="pill crit">Falta {miss.length === 1 ? miss[0].label.toLowerCase() : `${miss.length}`}</span> : <span className="pill ok">Listo</span>}

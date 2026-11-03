@@ -1,8 +1,18 @@
 // Tracks y carpetas: catálogos, tipos y checklist compartidos entre servidor y navegador
 
-export const TRACK_TYPES = { single: 'Sencillo propio', feat: 'Feat', cover: 'Cover', remix: 'Remix' } as const;
+export const TRACK_TYPES = { single: 'Sencillo propio', collab: 'Colaboración', feat: 'Feat (artista invitado)', cover: 'Cover', remix: 'Remix' } as const;
 export type TrackType = keyof typeof TRACK_TYPES;
 export const RELEASE_TYPES = ['Sencillo', 'EP', 'Álbum'] as const;
+export const VERSIONS = ['Acústica', 'En vivo', 'Remix', 'Versión extendida', 'Radio edit', 'Instrumental', 'Sped up', 'Slowed', 'Remasterizada'];
+
+// Artistas con quien se hace el track: colaboración (principales) o feat (invitados)
+export const hasGuests = (t: string) => t === 'collab' || t === 'feat';
+export const guestList = (s: string | null) => (s ?? '').split(';').map((x) => x.trim()).filter(Boolean);
+export function artistLine(r: { main_artist: string | null; featured_artists: string | null; track_type: string }) {
+  const g = guestList(r.featured_artists);
+  if (!g.length) return r.main_artist ?? '';
+  return r.track_type === 'feat' ? `${r.main_artist ?? ''} feat. ${g.join(', ')}` : [r.main_artist, ...g].filter(Boolean).join(' & ');
+}
 
 export const LINK_KINDS = {
   demo: 'Demo', mix: 'Mezcla', master: 'Máster', instrumental: 'Instrumental', video: 'Video', other_link: 'Otro enlace',
@@ -61,14 +71,14 @@ export const labelHandles = (r: Pick<Recording, 'label_handles_legal'>, ws?: Pic
 // Documentos que pide este track según su tipo
 export function requiredDocs(r: Pick<Recording, 'track_type'>): Exclude<DocKind, 'other_doc'>[] {
   const d: Exclude<DocKind, 'other_doc'>[] = ['wfh'];
-  if (r.track_type === 'feat') d.push('waiver');
+  if (r.track_type === 'feat' || r.track_type === 'collab') d.push('waiver');
   if (r.track_type === 'cover' || r.track_type === 'remix') d.push('license');
   return d;
 }
 export const docStatus = (r: Recording, k: 'wfh' | 'waiver' | 'license'): DocStatus =>
   k === 'wfh' ? r.wfh_status : k === 'waiver' ? r.waiver_status : r.license_status;
 export const docLabel = (r: Pick<Recording, 'track_type'>, k: DocKind) =>
-  k === 'license' ? (r.track_type === 'cover' ? 'Licencia de la obra' : 'Licencia del original') : DOC_KINDS[k];
+  k === 'license' ? (r.track_type === 'cover' ? 'Licencia de la obra' : 'Licencia del original') : k === 'waiver' && r.track_type === 'collab' ? 'Waiver de quien colabora' : DOC_KINDS[k];
 
 export type CheckItem = { key: string; label: string; ok: boolean; why: string; soon?: boolean; optional?: boolean };
 

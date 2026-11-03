@@ -37,12 +37,12 @@ export const CREDIT_COLS = 'id, recording_id, category, role, person_id, display
 export type Code = { recording_id: string; format: string; isrc: string | null; upc: string | null };
 
 export type LCRecording = {
-  id: string; workspace_id: string; title: string; version_title: string | null; main_artist: string | null; featured_artists: string | null;
+  id: string; workspace_id: string; title: string; version_title: string | null; main_artist: string | null; featured_artists: string | null; track_type: string;
   isrc: string | null; upc: string | null; release_title: string | null; release_type: string | null; release_date: string | null;
   label_name: string | null; distributor: string | null; genre: string | null; explicit: 'no' | 'explicit' | 'clean'; language: string | null;
   duration_s: number | null; p_year: number | null; p_owner: string | null; c_year: number | null; c_owner: string | null; delivery_contact: string | null; work_id: string | null;
 };
-export const LC_COLS = 'id, workspace_id, title, version_title, main_artist, featured_artists, isrc, upc, release_title, release_type, release_date, label_name, distributor, genre, explicit, language, duration_s, p_year, p_owner, c_year, c_owner, delivery_contact, work_id';
+export const LC_COLS = 'id, workspace_id, title, version_title, main_artist, featured_artists, track_type, isrc, upc, release_title, release_type, release_date, label_name, distributor, genre, explicit, language, duration_s, p_year, p_owner, c_year, c_owner, delivery_contact, work_id';
 
 export type CompRow = { name: string; role: string; share_bp: number; publisher: string; publisher_ipi: string; pro: string; ipi: string; contact: string };
 
@@ -82,12 +82,12 @@ export function buildDoc(o: {
     workspace: o.workspace, title: r.title, version: r.version_title || '', artist: r.main_artist || '', splitState: o.splitState,
     missing: lcMissing(r, o.credits, o.comp),
     release: [
-      ['Lanzamiento', r.release_title || r.title], ['Tipo', r.release_type || ''], ['Artista principal', r.main_artist || ''],
+      ['Lanzamiento', r.release_title || r.title], ['Tipo', r.release_type || ''], ['Artista principal', r.track_type === 'collab' ? [r.main_artist, ...(r.featured_artists || '').split(';').map((x) => x.trim()).filter(Boolean)].filter(Boolean).join(' & ') : r.main_artist || ''],
       ['Sello', r.label_name || ''], ['Distribuidora', r.distributor || ''], ['UPC', r.upc || ''], ['Fecha de lanzamiento', date],
       ['Género', r.genre || ''], ['Línea ℗', r.p_owner ? `℗ ${r.p_year ?? ''} ${r.p_owner}` : ''], ['Línea ©', r.c_owner ? `© ${r.c_year ?? ''} ${r.c_owner}` : ''],
     ],
     track: [
-      ['Título', r.title], ['Versión', r.version_title || ''], ['Artista principal', r.main_artist || ''], ['Artistas invitados', feat],
+      ['Título', r.title], ['Versión', r.version_title || ''], ['Artista principal', r.main_artist || ''], [r.track_type === 'collab' ? 'Colabora con' : 'Artistas invitados', feat],
       ['ISRC', r.isrc || ''], ['ISWC', o.iswc || ''], ['Duración', fmtDuration(r.duration_s)], ['Contenido', EXPLICIT[r.explicit] ?? ''],
       ['Idioma', langLabel(r.language)], ['Grabado en', studio('Recording Engineer')], ['Mezclado en', studio('Mixing Engineer')], ['Masterizado en', studio('Mastering Engineer')],
     ],

@@ -4,6 +4,7 @@ import { headers } from 'next/headers';
 import { supabaseServer } from '@/lib/supabase/server';
 import { ROLES, canonical, equalShares, type Snapshot } from '@/lib/splits';
 import { mailConfigured } from '@/lib/mail';
+import { artistLine } from '@/lib/tracks';
 import { sendFinalDocument } from '@/lib/finalMail';
 
 export type Result = { error?: string; id?: string; links?: Record<string, string>; link?: string };
@@ -73,10 +74,10 @@ export async function saveWork(input: WorkInput): Promise<Result> {
 // Split para un track: crea la obra con los datos del track y la liga
 export async function createTrackSplit(recordingId: string): Promise<Result> {
   const { sb } = await ctx();
-  const { data: r } = await sb.from('recordings').select('id, workspace_id, title, main_artist, featured_artists, work_id').eq('id', recordingId).maybeSingle();
+  const { data: r } = await sb.from('recordings').select('id, workspace_id, title, main_artist, featured_artists, track_type, work_id').eq('id', recordingId).maybeSingle();
   if (!r) return { error: 'No se encontró el track.' };
   if (r.work_id) return { id: r.work_id };
-  const artist = [r.main_artist, r.featured_artists && `feat. ${r.featured_artists.split(';').map((s: string) => s.trim()).join(', ')}`].filter(Boolean).join(' ');
+  const artist = artistLine(r);
   const res = await saveWork({ workspace_id: r.workspace_id, title: r.title, artist, session_with: '', session_date: '', studio: '', notes: '' });
   if (res.error || !res.id) return res;
   const { error } = await sb.from('recordings').update({ work_id: res.id }).eq('id', r.id);
