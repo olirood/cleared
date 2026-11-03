@@ -122,3 +122,7 @@ await as(U.oli, `select issue_signature_link($1,$2)`, [p5, h('tok-borrar')]);
 const delw = await as(U.oli, `delete from works where id=$1 returning id`, [w5]);
 delw.rows.length === 1 ? ok('El dueño borra un split en firma') : bad('no se borró');
 (await one(null, `select signing_view($1) v`, [h('tok-borrar')])).v === null ? ok('Al borrarlo, su enlace de firma ya no abre nada') : bad('enlace sigue vivo');
+
+// copia final a quien aprobó por el espacio que representa
+const fin3 = (await one(null, `select completed_document_for($1,$2) d`, [ag, await KEY()])).d;
+fin3.approvers.some((a) => a.email === 'mar@test' && a.workspace === 'Apollo Music') ? ok('El documento final incluye a Margarita, que aprobó por Apollo (le llega copia)') : bad('approvers: ' + JSON.stringify(fin3.approvers));

@@ -10,6 +10,7 @@ export type FinalDoc = {
   work: { id: string; title: string; artist: string | null; session_date: string | null }; workspace: { id: string; name: string; template: string };
   participants: { role: string; share_bp: number; credits: string | null; snapshot: Snap; status: string; signed_at: string; typed_name: string; method: string; ip: string | null }[];
   sender: { email: string | null; name: string } | null;
+  approvers?: { email: string | null; name: string; workspace: string }[];
   log: { at: string; action: string; detail: Record<string, unknown> | null }[] | null;
 };
 
@@ -45,11 +46,14 @@ export async function sendFinalDocument(data: unknown) {
   const to = [
     ...d.participants.map((p) => ({ email: p.snapshot.email ?? '', name: p.snapshot.legal_name ?? '', signer: true })),
     ...(d.sender?.email ? [{ email: d.sender.email, name: d.sender.name, signer: false }] : []),
+    ...(d.approvers ?? []).filter((a) => a.email).map((a) => ({ email: a.email!, name: a.name, signer: false, approver: a.workspace })),
   ].filter((x) => x.email && !seen.has(x.email.toLowerCase()) && seen.add(x.email.toLowerCase()));
   for (const r of to) {
     const intro = r.signer
       ? `todas las partes firmaron el split de “${d.work.title}” (${d.workspace.name}, versión ${d.agreement.version}).`
-      : `el split de “${d.work.title}” que enviaste desde ${d.workspace.name} (versión ${d.agreement.version}) ya está firmado por todas las partes.`;
+      : 'approver' in r && r.approver
+        ? `el split de “${d.work.title}” de ${d.workspace.name} (versión ${d.agreement.version}), que aprobaste por ${r.approver}, ya está firmado por todas las partes.`
+        : `el split de “${d.work.title}” que enviaste desde ${d.workspace.name} (versión ${d.agreement.version}) ya está firmado por todas las partes.`;
     await sendMail({
       to: [{ email: r.email, name: r.name || undefined }],
       subject: `Split firmado: “${d.work.title}”`,
