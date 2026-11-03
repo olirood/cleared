@@ -7,7 +7,8 @@ import { buildReps, type RepRow } from '@/lib/reps';
 
 export const metadata = { title: 'Directorio · Cleared' };
 
-export default async function DirectorioPage() {
+export default async function DirectorioPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const sp = await searchParams;
   const sb = await supabaseServer();
   const { data: { user } } = await sb.auth.getUser();
   if (!user) redirect('/login');
@@ -27,6 +28,7 @@ export default async function DirectorioPage() {
       <TopBar name={name} />
       <main className="wrap">
         <Directory
+          startOpen={sp.nuevo === '1' ? 'new' : typeof sp.p === 'string' ? sp.p : null}
           people={(people.data ?? []) as unknown as Person[]}
           workspaces={(ws.data ?? []) as Workspace[]}
           memberships={(mem.data ?? []) as Membership[]}

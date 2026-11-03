@@ -6,13 +6,15 @@ import { KINDS, NATIONALITIES, PHONE_COUNTRIES, PROS, canWriteRole, kindLabel, m
 import { repFor, repLabel, type Rep } from '@/lib/reps';
 import { deletePerson, savePerson, type PersonInput } from './actions';
 
-type Props = { people: Person[]; workspaces: Workspace[]; memberships: Membership[]; reps: Rep[] };
+type Props = { people: Person[]; workspaces: Workspace[]; memberships: Membership[]; reps: Rep[]; startOpen?: string | null };
 
-export default function Directory({ people, workspaces, memberships, reps }: Props) {
+export default function Directory({ people, workspaces, memberships, reps, startOpen = null }: Props) {
   const router = useRouter();
   const [q, setQ] = useState('');
   const [kind, setKind] = useState('');
-  const [open, setOpen] = useState<Person | 'new' | null>(null);
+  const [open, setOpen] = useState<Person | 'new' | null>(() => startOpen === 'new' ? 'new' : startOpen ? people.find((p) => p.id === startOpen) ?? null : null);
+  useEffect(() => { if (typeof window !== 'undefined' && window.location.search) window.history.replaceState(null, '', window.location.pathname); }, []);
+
   const [toast, setToast] = useState('');
 
   const wsName = (id: string | null) => workspaces.find((w) => w.id === id)?.name ?? '';

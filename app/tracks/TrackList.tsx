@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { artistLine, checklist, fmtDate, missingOf, TRACK_TYPES, type Asset, type Recording, type SplitState, type WorkspaceLegal } from '@/lib/tracks';
@@ -7,13 +7,15 @@ import type { Member } from '@/lib/session';
 import Panel from '../components/Panel';
 import TrackForm from './TrackForm';
 
-type Props = { recordings: Recording[]; assets: Asset[]; thumbs: Record<string, string>; workspaces: WorkspaceLegal[]; memberships: Member[]; splits: Record<string, SplitState>; labelCopy: Record<string, { ok: boolean; why: string }> };
+type Props = { recordings: Recording[]; assets: Asset[]; thumbs: Record<string, string>; workspaces: WorkspaceLegal[]; memberships: Member[]; splits: Record<string, SplitState>; labelCopy: Record<string, { ok: boolean; why: string }>; startCreating?: boolean };
 
-export default function TrackList({ recordings, assets, thumbs, workspaces, memberships, splits, labelCopy }: Props) {
+export default function TrackList({ recordings, assets, thumbs, workspaces, memberships, splits, labelCopy, startCreating = false }: Props) {
   const router = useRouter();
   const [ws, setWs] = useState('');
   const [q, setQ] = useState('');
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(startCreating);
+  useEffect(() => { if (typeof window !== 'undefined' && window.location.search) window.history.replaceState(null, '', window.location.pathname); }, []);
+
   const writable = workspaces.filter((w) => memberships.some((m) => m.workspace_id === w.id && m.role !== 'viewer'));
   const wsOf = (id: string) => workspaces.find((w) => w.id === id);
 

@@ -7,7 +7,8 @@ import SplitList from './SplitList';
 
 export const metadata = { title: 'Splits · Cleared' };
 
-export default async function SplitsPage() {
+export default async function SplitsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const sp = await searchParams;
   const { sb, memberships, name } = await requireSession();
   const [works, ws, repRows] = await Promise.all([
     sb.from('works').select(`${WORK_COLS}, recordings(id, title)`).order('created_at', { ascending: false }),
@@ -22,7 +23,7 @@ export default async function SplitsPage() {
     <>
       <TopBar name={name} />
       <main className="wrap">
-        <SplitList works={list} agreements={ags} workspaces={ws.data ?? []} memberships={memberships} reps={buildReps((repRows.data ?? []) as RepRow[])} />
+        <SplitList works={list} agreements={ags} workspaces={ws.data ?? []} memberships={memberships} reps={buildReps((repRows.data ?? []) as RepRow[])} startCreating={sp.nuevo === '1'} />
       </main>
     </>
   );

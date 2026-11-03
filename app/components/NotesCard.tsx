@@ -2,6 +2,7 @@
 // Mis pendientes: anotar rápido, palomear, borrar. Se ve al instante y se guarda atrás.
 import { useOptimistic, useState, useTransition } from 'react';
 import { addNote, clearDone, deleteNote, toggleNote } from '../notes-actions';
+import Icon from './Icon';
 
 export type Note = { id: string; body: string; due_on: string | null; done_at: string | null; created_at: string };
 type Op = { t: 'add'; n: Note } | { t: 'toggle'; id: string; done: boolean } | { t: 'del'; id: string } | { t: 'clear' };
@@ -42,11 +43,11 @@ export default function NotesCard({ notes, today, ready }: { notes: Note[]; toda
 
   return (
     <section className="card glass notes">
-      <header><h2>Mis pendientes</h2>{open.length > 0 && <span className="pill">{open.length}</span>}</header>
+      <header><h2 className="h-ic"><span><Icon name="list" size={16} /></span>Mis pendientes</h2>{open.length > 0 && <span className="pill">{open.length}</span>}</header>
       {!ready ? <p className="muted small">Falta correr la migración de notas en Supabase para usar esta sección.</p> : (
         <>
           <form className="note-add" onSubmit={(e) => { e.preventDefault(); submit(); }}>
-            <input type="text" value={text} maxLength={500} onChange={(e) => setText(e.target.value)} placeholder="Anota algo… (Enter para guardar)" aria-label="Nuevo pendiente" />
+            <input type="text" value={text} maxLength={500} onChange={(e) => setText(e.target.value)} placeholder="Anota algo…" title="Escribe y presiona Enter" aria-label="Nuevo pendiente" />
             {showDate
               ? <input type="date" value={due} min={today} onChange={(e) => setDue(e.target.value)} aria-label="Para cuándo" className="note-date" />
               : <button type="button" className="icon-btn" title="Ponerle fecha" aria-label="Ponerle fecha" onClick={() => setShowDate(true)}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3" /><path d="M3 10h18M8 3v4M16 3v4" /></svg></button>}

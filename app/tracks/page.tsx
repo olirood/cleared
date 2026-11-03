@@ -6,7 +6,8 @@ import TrackList from './TrackList';
 
 export const metadata = { title: 'Tracks · Cleared' };
 
-export default async function TracksPage() {
+export default async function TracksPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const sp = await searchParams;
   const { sb, memberships, name } = await requireSession();
   const mine = memberships.map((m) => m.workspace_id);
   const [ws, recs] = await Promise.all([
@@ -28,7 +29,7 @@ export default async function TracksPage() {
     <>
       <TopBar name={name} />
       <main className="wrap">
-        <TrackList recordings={recordings} assets={assets} thumbs={thumbs} splits={splits} labelCopy={lc} workspaces={(ws.data ?? []) as WorkspaceLegal[]} memberships={memberships} />
+        <TrackList recordings={recordings} assets={assets} thumbs={thumbs} splits={splits} labelCopy={lc} workspaces={(ws.data ?? []) as WorkspaceLegal[]} memberships={memberships} startCreating={sp.nuevo === '1'} />
       </main>
     </>
   );

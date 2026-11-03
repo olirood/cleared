@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { Work } from '@/lib/splits';
@@ -12,11 +12,13 @@ import WorkForm from './WorkForm';
 
 type W = Work & { recordings: { id: string; title: string }[] };
 
-export default function SplitList({ works, agreements, workspaces, memberships, reps }: { works: W[]; agreements: AgreementSummary[]; workspaces: { id: string; name: string }[]; memberships: Member[]; reps: Rep[] }) {
+export default function SplitList({ works, agreements, workspaces, memberships, reps, startCreating = false }: { works: W[]; agreements: AgreementSummary[]; workspaces: { id: string; name: string }[]; memberships: Member[]; reps: Rep[]; startCreating?: boolean }) {
   const router = useRouter();
   const [filter, setFilter] = useState('');
   const [q, setQ] = useState('');
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(startCreating);
+  useEffect(() => { if (typeof window !== 'undefined' && window.location.search) window.history.replaceState(null, '', window.location.pathname); }, []);
+
   const mine = new Set(memberships.map((m) => m.workspace_id));
   const writable = workspaces.filter((w) => memberships.some((m) => m.workspace_id === w.id && m.role !== 'viewer'));
   const wsName = (id: string) => workspaces.find((w) => w.id === id)?.name ?? '';
