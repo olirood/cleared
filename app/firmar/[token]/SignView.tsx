@@ -81,7 +81,7 @@ export default function SignView({ token, view }: { token: string; view: Signing
             </label>
             {err && <p className="form-msg crit" role="alert">{err}</p>}
             <div className="row spread">
-              <button type="button" className="btn ghost" onClick={() => { setErr(''); setMode('change'); }}>Algo está mal: pedir un cambio</button>
+              <button type="button" className="btn" onClick={() => { setErr(''); setMode('change'); }}>Pedir un cambio</button>
               <button className="btn primary" disabled={pending || !consent || !name.trim() || code.length !== 6}>{pending ? 'Firmando…' : 'Firmar'}</button>
             </div>
           </form>
@@ -96,13 +96,13 @@ export default function SignView({ token, view }: { token: string; view: Signing
             </label>
             {err && <p className="form-msg crit" role="alert">{err}</p>}
             <div className="row spread">
-              <button type="button" className="btn ghost" onClick={() => setMode('sign')}>Volver a firmar</button>
+              <button type="button" className="btn" onClick={() => setMode('sign')}>Volver a firmar</button>
               <button className="btn primary" disabled={pending}>Enviar</button>
             </div>
           </form>
         </section>
       )}
-      {mode === 'sent' && <div className="banner info"><span><b>Listo.</b> {view.workspace.name} recibió tu comentario y te mandará una versión corregida.</span></div>}
+      {mode === 'sent' && <div className="banner info"><span><b>Listo.</b> Le avisamos a {view.workspace.name}. Cuando lo corrijan te mandarán un enlace nuevo para firmar.</span></div>}
     </div>
   );
 }
