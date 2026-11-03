@@ -1,6 +1,6 @@
 // Split firmado: el PDF final (servidor), su envío por correo y su archivo en el almacén
-import { ROLE_EN } from './splits';
-import { esc, mailConfigured, mailHtml, sendMail } from './mail';
+import { ROLE_EN, ROLES as ROLE_ES, fmtDateTime } from './splits';
+import { P, esc, firstName, mailBox, mailConfigured, mailHtml, mailWriters, sendMail } from './mail';
 import { fileSafe, letterPdf, rowFrom, type LetterModel } from './letter';
 import { APOLLO_LOGO } from './apolloLogo';
 
@@ -48,20 +48,29 @@ export async function sendFinalDocument(data: unknown) {
     ...(d.sender?.email ? [{ email: d.sender.email, name: d.sender.name, signer: false }] : []),
     ...(d.approvers ?? []).filter((a) => a.email).map((a) => ({ email: a.email!, name: a.name, signer: false, approver: a.workspace })),
   ].filter((x) => x.email && !seen.has(x.email.toLowerCase()) && seen.add(x.email.toLowerCase()));
+  const writers = d.participants.map((p) => ({ name: p.snapshot.legal_name ?? '', role: (ROLE_ES as Record<string, string>)[p.role] ?? p.role, pct: (p.share_bp / 100).toFixed(2).replace(/\.00$/, '') }));
+  const when = fmtDateTime(d.agreement.completed_at);
   for (const r of to) {
+    const hola = firstName(r.name);
     const intro = r.signer
-      ? `todas las partes firmaron el split de “${d.work.title}” (${d.workspace.name}, versión ${d.agreement.version}).`
+      ? `todas las partes firmaron el split de <b style="color:#111114">“${esc(d.work.title)}”</b>.`
       : 'approver' in r && r.approver
-        ? `el split de “${d.work.title}” de ${d.workspace.name} (versión ${d.agreement.version}), que aprobaste por ${r.approver}, ya está firmado por todas las partes.`
-        : `el split de “${d.work.title}” que enviaste desde ${d.workspace.name} (versión ${d.agreement.version}) ya está firmado por todas las partes.`;
+        ? `el split de <b style="color:#111114">“${esc(d.work.title)}”</b> que aprobaste por ${esc(String(r.approver))} ya está firmado por todas las partes.`
+        : `el split de <b style="color:#111114">“${esc(d.work.title)}”</b> que enviaste ya está firmado por todas las partes.`;
+    const plain = intro.replace(/<[^>]+>/g, '');
     await sendMail({
       to: [{ email: r.email, name: r.name || undefined }],
       subject: `Split firmado: “${d.work.title}”`,
-      text: `Hola${r.name ? ` ${r.name}` : ''}:\n\n${intro[0].toUpperCase() + intro.slice(1)}\n\n${lines.join('\n')}\n\nTe adjuntamos el documento con todas las firmas y su constancia. Guárdalo: es tu original.\nHuella SHA-256: ${d.agreement.content_sha256}\n\nCleared`,
-      html: mailHtml('Split firmado por todas las partes', `<p style="margin:0 0 12px;line-height:1.5">Hola${r.name ? ` ${esc(r.name)}` : ''}, ${esc(intro)}</p>
-<ul style="padding-left:18px;margin:0 0 12px;line-height:1.6">${lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>
-<p style="margin:0 0 12px;line-height:1.5">Te adjuntamos el documento con todas las firmas y su constancia. Guárdalo: es tu original.</p>
-<p style="margin:0;font-size:11px;color:#777;word-break:break-all">Huella SHA-256: ${esc(d.agreement.content_sha256)}</p>`),
+      text: `Hola${hola ? ` ${hola}` : ''}:\n\n${plain[0].toUpperCase() + plain.slice(1)}\n${d.workspace.name} · versión ${d.agreement.version} · ${when}\n\n${lines.join('\n')}\n\nTe adjuntamos el documento con todas las firmas y su constancia. Guárdalo: es tu original.\nHuella SHA-256: ${d.agreement.content_sha256}\n\nCleared`,
+      html: mailHtml('Split firmado ✓',
+        P(`Hola${hola ? ` ${esc(hola)}` : ''}, ${intro}`)
+        + P(`${esc(d.workspace.name)} · versión ${d.agreement.version} · ${esc(when)}`, 'font-size:13px;color:#707078;margin-top:-6px;')
+        + mailWriters(writers)
+        + mailBox(`<table role="presentation" cellpadding="0" cellspacing="0"><tr>
+<td style="width:34px;height:42px;background:#ffffff;border:1px solid #dadade;border-radius:6px;text-align:center;font-size:9px;font-weight:700;color:#c2382a;font-family:Helvetica,Arial,sans-serif">PDF</td>
+<td style="padding-left:12px;font-size:14px;line-height:1.4;color:#111114"><b>${esc(name)}</b><br><span style="font-size:12.5px;color:#707078">Va adjunto: carta con todas las firmas y constancia de firma electrónica. Guárdalo, es tu original.</span></td></tr></table>`)
+        + `<p style="margin:0;font-size:11px;line-height:1.5;color:#8a8a92;word-break:break-all">Huella SHA-256: ${esc(d.agreement.content_sha256)}</p>`,
+        { preheader: `Todas las partes firmaron “${d.work.title}”. Va adjunto el PDF con las firmas.` }),
       attachments: [{ filename: name, content: b64, mimeType: 'application/pdf' }],
     });
   }

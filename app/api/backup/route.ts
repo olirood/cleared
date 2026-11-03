@@ -1,7 +1,7 @@
 // Respaldo mensual: lo llama el cron de Cloudflare (worker.ts) con la llave del servidor.
 // Exporta toda la información a JSON y la manda por correo.
 import { supabaseServer } from '@/lib/supabase/server';
-import { mailConfigured, mailHtml, sendMail } from '@/lib/mail';
+import { P, mailConfigured, mailHtml, sendMail } from '@/lib/mail';
 
 export async function POST(req: Request) {
   const key = process.env.CLEARED_SERVER_KEY;
@@ -21,8 +21,9 @@ export async function POST(req: Request) {
     to: [{ email: to }],
     subject: `Respaldo de Cleared · ${day}`,
     text: `Respaldo mensual de Cleared (${day}).\n${summary}\nPeso: ${(json.length / 1024).toFixed(0)} KB\n\nGuarda el archivo adjunto. Trae directorio, tracks, splits, firmas y bitácora; no incluye portadas ni PDFs subidos.\n\nCleared`,
-    html: mailHtml('Respaldo mensual', `<p style="margin:0 0 12px;line-height:1.5">${summary}. Peso: ${(json.length / 1024).toFixed(0)} KB.</p>
-<p style="margin:0;line-height:1.5">Guarda el archivo adjunto. Trae directorio, tracks, splits, firmas y bitácora; no incluye portadas ni PDFs subidos (los splits firmados ya te llegan por correo).</p>`),
+    html: mailHtml('Respaldo mensual', P(`${summary}.`) + P(`Peso: ${(json.length / 1024).toFixed(0)} KB.`, 'font-size:13px;color:#707078;margin-top:-6px;')
+      + P('Guarda el archivo adjunto. Trae directorio, tracks, splits, firmas y bitácora; no incluye portadas ni PDFs subidos (los splits firmados ya te llegan por correo).', 'margin:0;'),
+      { preheader: `Respaldo de Cleared del ${day}: ${summary}` }),
     attachments: [{ filename: `cleared-respaldo-${day}.json`, content: Buffer.from(json, 'utf8').toString('base64'), mimeType: 'application/json' }],
   });
   return Response.json({ ok: true, bytes: json.length });

@@ -2,7 +2,7 @@
 import { headers } from 'next/headers';
 import { supabaseServer } from '@/lib/supabase/server';
 import { CONSENT_V, normName } from '@/lib/splits';
-import { esc, mailConfigured, mailError, mailHtml, sendMail } from '@/lib/mail';
+import { P, esc, firstName, mailBox, mailConfigured, mailError, mailHtml, sendMail } from '@/lib/mail';
 import { sendFinalDocument } from '@/lib/finalMail';
 
 async function hash(token: string) {
@@ -46,10 +46,13 @@ export async function requestCode(token: string): Promise<{ error?: string; ok?:
     await sendMail({
       to: [{ email: d.email, name: d.name }],
       subject: `${code} es tu código para firmar “${d.title}”`,
-      text: `Hola ${d.name}:\n\nTu código para firmar el split de “${d.title}” (${d.workspace}) es: ${code}\n\nVence en 10 minutos. No lo compartas: escribirlo vale como tu firma.\n\nCleared`,
-      html: mailHtml(`Tu código para firmar`, `<p style="margin:0 0 16px;line-height:1.5">Hola ${esc(d.name)}, este es tu código para firmar el split de <b>“${esc(d.title)}”</b> (${esc(d.workspace)}).</p>
-<div style="font-size:32px;font-weight:700;letter-spacing:8px;font-family:ui-monospace,Menlo,monospace;background:#f2f2f3;border-radius:12px;padding:16px;text-align:center">${code}</div>
-<p style="margin:16px 0 0;font-size:13px;color:#555;line-height:1.5">Vence en 10 minutos. No lo compartas con nadie: escribirlo vale como tu firma.</p>`),
+      text: `Hola ${firstName(d.name)}:\n\nTu código para firmar el split de “${d.title}” (${d.workspace}) es: ${code}\n\nVence en 10 minutos. No lo compartas: escribirlo vale como tu firma.\n\nCleared`,
+      html: mailHtml('Tu código para firmar',
+        P(`Hola ${esc(firstName(d.name))}, este es tu código para firmar el split de <b style="color:#111114">“${esc(d.title)}”</b> (${esc(d.workspace)}).`)
+        + mailBox(`<div style="font-size:34px;font-weight:700;letter-spacing:10px;font-family:ui-monospace,Menlo,Consolas,monospace;color:#111114;text-align:center">${code}</div>`, 'padding:22px 18px;')
+        + P('Escríbelo en la página de firma. Vence en 10 minutos.', 'margin-bottom:6px;')
+        + P('No lo compartas con nadie: escribirlo vale como tu firma.', 'margin:0;font-size:13px;color:#707078;'),
+        { preheader: `${code} es tu código para firmar “${d.title}”. Vence en 10 minutos.` }),
     });
   } catch (e) {
     console.error('[cleared] envío de código falló:', String((e as Error)?.message || e).slice(0, 200));
