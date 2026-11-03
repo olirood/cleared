@@ -99,6 +99,55 @@ export async function saveCode(recordingId: string, format: string, isrc: string
 
 // Alta rápida desde el label copy: nombre y correo; lo demás se completa en el directorio
 const ENGINEER_ROLES = ['Recording Engineer', 'Mixing Engineer', 'Mastering Engineer', 'Assistant Engineer'];
+// Agrega un crédito completo (rol + persona + detalle) de una vez; queda como renglón fijo
+export async function addCreditFull(recordingId: string, category: 'production' | 'performer' | 'visual', input: {
+  role: string; person_id?: string | null; new_person?: { name: string; email: string } | null; detail?: string; performer_type?: string;
+}): Promise<Result> {
+  if (!(category in DEFAULTS)) return { error: 'Categoría inválida.' };
+  const role = t(input.role).slice(0, 80);
+  if (!role) return { error: 'Elige el rol.' };
+  if (category === 'performer' && input.performer_type && !(input.performer_type in PERF_TYPES)) return { error: 'Tipo inválido.' };
+  const sb = await supabaseServer();
+  let personId = input.person_id || null;
+  if (!personId && input.new_person) {
+    const r = await ensurePerson(sb, recordingId, category, role, input.new_person.name, input.new_person.email);
+    if ('error' in r) return { error: r.error };
+    personId = r.id;
+  }
+  if (!personId) return { error: 'Elige a la persona.' };
+  const { data: cs } = await sb.from('credits').select('position').eq('recording_id', recordingId);
+  const position = Math.max(-1, ...(cs ?? []).map((c) => c.position)) + 1;
+  const { error } = await sb.from('credits').insert({
+    recording_id: recordingId, category, role, person_id: personId, display_name: null, position,
+    detail: category === 'performer' ? null : orNull(input.detail),
+    performer_type: category === 'performer' ? (input.performer_type || 'session') : null,
+  });
+  if (error) return { error: bad(error) };
+  refresh(recordingId);
+  if (input.new_person) revalidatePath('/directorio');
+  return {};
+}
+
+// Perfil rápido (nombre y correo): si ya existe alguien con ese nombre, se usa ese perfil
+async function ensurePerson(sb: Awaited<ReturnType<typeof supabaseServer>>, recordingId: string, category: string, role: string, name: string, email: string): Promise<{ id: string } | { error: string }> {
+  const legal = t(name), mail = t(email);
+  if (legal.length < 3) return { error: 'Escribe el nombre legal.' };
+  if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) return { error: 'Revisa el correo.' };
+  const kind = category === 'visual' ? 'visual' : category === 'performer' ? (role === 'Voz principal' ? 'artist' : 'musician') : ENGINEER_ROLES.includes(role) ? 'engineer' : 'producer';
+  const { data: rec } = await sb.from('recordings').select('workspace_id').eq('id', recordingId).maybeSingle();
+  if (!rec) return { error: 'No se encontró el track.' };
+  const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const { data: same } = await sb.from('people').select('id, legal_name, kinds').ilike('legal_name', legal.replace(/[\\%_]/g, (c) => '\\' + c));
+  const hit = (same ?? []).find((p) => norm(p.legal_name) === norm(legal));
+  if (hit) {
+    if (!hit.kinds.includes(kind)) await sb.from('people').update({ kinds: [...hit.kinds, kind] }).eq('id', hit.id);
+    return { id: hit.id };
+  }
+  const { data, error } = await sb.from('people').insert({ owner_workspace_id: rec.workspace_id, legal_name: legal, email: mail || null, kinds: [kind] }).select('id').single();
+  if (error) return { error: bad(error) };
+  return { id: data.id };
+}
+
 export async function quickPerson(recordingId: string, creditId: string, category: string, role: string, name: string, email: string): Promise<Result> {
   const legal = t(name), mail = t(email);
   if (legal.length < 3) return { error: 'Escribe el nombre legal.' };

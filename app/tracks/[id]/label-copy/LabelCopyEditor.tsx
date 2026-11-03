@@ -8,7 +8,7 @@ import {
 } from '@/lib/labelcopy';
 import { downloadBlob, fileSafe } from '@/lib/letter';
 import Panel, { Toast } from '../../../components/Panel';
-import { addCredit, quickPerson, removeCredit, saveLabelCopy, updateCredit, type LCInput } from './actions';
+import { addCreditFull, removeCredit, saveLabelCopy, type LCInput } from './actions';
 
 type P = { id: string; legal_name: string; credit_name: string | null; kinds: string[]; instruments: string | null };
 type Props = {
@@ -124,68 +124,95 @@ function Credits({ title, category, roles, r, credits, people, canWrite, busy, r
 }) {
   const list = credits.filter((c) => c.category === category);
   const sugg = SUGGESTED[category];
-  // solo quien tiene ese rol en el directorio (más quien ya esté elegido)
-  const forRole = (sel: string | null) => people.filter((p) => p.kinds.some((k) => sugg.includes(k)) || p.id === sel).sort((a, b) => a.legal_name.localeCompare(b.legal_name));
-  const [newFor, setNewFor] = useState<{ id: string; role: string } | null>(null);
+  const roleText = (role: string) => {
+    const k = roles.find(([x]) => x === role);
+    return !k ? role : category === 'performer' ? k[1] : `${k[1]} · ${k[0]}`;
+  };
+  const who = (c: Credit) => {
+    const pe = c.person_id ? people.find((p) => p.id === c.person_id) : undefined;
+    const legal = pe?.legal_name ?? c.people?.legal_name ?? c.display_name ?? '';
+    const credit = pe?.credit_name ?? c.people?.credit_name ?? null;
+    return { legal, credit };
+  };
   return (
     <section className="card glass">
-      <header><h2>{title}</h2>{canWrite && <button className="btn small" disabled={busy} onClick={() => run(() => addCredit(r.id, category), 'Agregado')}>Agregar</button>}</header>
-      {list.length === 0 ? <p className="muted">Sin créditos todavía.</p> : (
-        <div className="credits">
+      <header><h2>{title}</h2>{list.length > 0 && <span className="pill">{list.length}</span>}</header>
+      {list.length > 0 && (
+        <div className="parts lc-parts">
           {list.map((c) => {
-            const known = roles.some(([k]) => k === c.role);
+            const p = who(c);
+            const extra = category === 'performer' ? (c.performer_type ? PERF_TYPES[c.performer_type] : '') : c.detail || '';
             return (
-              <fieldset key={c.id + c.role + c.person_id + c.display_name + c.detail + c.performer_type} className="plain credit" disabled={!canWrite || busy}>
-                <select value={known ? c.role : '__other'} aria-label="Rol"
-                  onChange={(e) => e.target.value !== '__other' && run(() => updateCredit(c.id, r.id, { role: e.target.value }), 'Guardado')}>
-                  {roles.map(([k, v]) => <option key={k} value={k}>{category === 'performer' ? v : `${v} · ${k}`}</option>)}
-                  <option value="__other">Otro…</option>
-                </select>
-                <select value={newFor?.id === c.id ? '__new' : c.person_id ?? (c.display_name ? '__free' : '')} aria-label="Persona"
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (v === '__new') { setNewFor({ id: c.id, role: c.role }); return; }
-                    setNewFor(null);
-                    if (v && v !== '__free') run(() => updateCredit(c.id, r.id, { person_id: v }), 'Guardado');
-                  }}>
-                  <option value="">Elegir del directorio…</option>
-                  {forRole(c.person_id).map((p) => <option key={p.id} value={p.id}>{p.credit_name ? `${p.credit_name} (${p.legal_name})` : p.legal_name}</option>)}
-                  {c.display_name && <option value="__free">{c.display_name} (sin perfil)</option>}
-                  <option value="__new">＋ Nuevo perfil…</option>
-                </select>
-                {category === 'performer' ? (
-                  <select value={c.performer_type ?? 'session'} aria-label="Tipo" onChange={(e) => run(() => updateCredit(c.id, r.id, { performer_type: e.target.value }), 'Guardado')}>
-                    {Object.entries(PERF_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                  </select>
-                ) : (
-                  <input defaultValue={c.detail ?? ''} placeholder={STUDIO_ROLES.includes(c.role) ? 'Estudio y ciudad' : 'Nota (opcional)'} aria-label="Detalle"
-                    onBlur={(e) => e.target.value.trim() !== (c.detail ?? '') && run(() => updateCredit(c.id, r.id, { detail: e.target.value }), 'Guardado')} />
-                )}
-                {!known && <input defaultValue={c.role} placeholder="Escribe el rol" aria-label="Rol personalizado" onBlur={(e) => e.target.value.trim() && e.target.value.trim() !== c.role && run(() => updateCredit(c.id, r.id, { role: e.target.value }), 'Guardado')} />}
-                <button type="button" className="icon-btn" aria-label="Quitar crédito" onClick={() => run(() => removeCredit(c.id, r.id), 'Quitado')}>×</button>
-                {newFor?.id === c.id && (
-                  <QuickPerson busy={busy} onCancel={() => setNewFor(null)}
-                    onSave={(name, email) => run(() => quickPerson(r.id, c.id, category, c.role, name, email), 'Perfil creado', () => setNewFor(null))} />
-                )}
-              </fieldset>
+              <div key={c.id} className="lc-row">
+                <div className="lc-who">
+                  {p.legal ? <><b>{p.legal}</b>{p.credit && <span className="muted"> ({p.credit})</span>}</> : <span className="pill crit">Falta elegir persona</span>}
+                </div>
+                <div className="lc-role">{roleText(c.role)}</div>
+                <div className="lc-extra muted small">{extra || '—'}</div>
+                {canWrite ? <button type="button" className="icon-btn" aria-label="Quitar crédito" disabled={busy} onClick={() => run(() => removeCredit(c.id, r.id), 'Quitado')}>×</button> : <span />}
+              </div>
             );
           })}
         </div>
       )}
+      {list.length === 0 && !canWrite && <p className="muted">Sin créditos todavía.</p>}
+      {canWrite && <AddCredit key={list.length} category={category} roles={roles} people={people} sugg={sugg} busy={busy}
+        onAdd={(input, done) => run(() => addCreditFull(r.id, category, input), 'Agregado', done)} />}
     </section>
   );
 }
 
-function QuickPerson({ busy, onSave, onCancel }: { busy: boolean; onSave: (name: string, email: string) => void; onCancel: () => void }) {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+// Barra para agregar: rol, persona (o perfil nuevo) y detalle; al agregar queda fijo arriba
+function AddCredit({ category, roles, people, sugg, busy, onAdd }: {
+  category: 'production' | 'performer' | 'visual'; roles: readonly (readonly [string, string])[]; people: P[]; sugg: string[]; busy: boolean;
+  onAdd: (input: { role: string; person_id?: string | null; new_person?: { name: string; email: string } | null; detail?: string; performer_type?: string }, done: () => void) => void;
+}) {
+  const [role, setRole] = useState('');
+  const [custom, setCustom] = useState('');
+  const [person, setPerson] = useState('');
+  const [newName, setNewName] = useState('');
+  const [newMail, setNewMail] = useState('');
+  const [detail, setDetail] = useState('');
+  const [ptype, setPtype] = useState('session');
+  const realRole = role === '__other' ? custom.trim() : role;
+  const isNew = person === '__new';
+  // primero quienes tienen ese rol en el directorio; el resto después
+  const fit = people.filter((p) => p.kinds.some((k) => sugg.includes(k))).sort((a, b) => a.legal_name.localeCompare(b.legal_name));
+  const rest = people.filter((p) => !fit.includes(p)).sort((a, b) => a.legal_name.localeCompare(b.legal_name));
+  const ready = !!realRole && (isNew ? newName.trim().length >= 3 : !!person);
+  const add = () => onAdd({
+    role: realRole, person_id: isNew ? null : person, new_person: isNew ? { name: newName, email: newMail } : null,
+    detail: category === 'performer' ? undefined : detail, performer_type: category === 'performer' ? ptype : undefined,
+  }, () => { setRole(''); setCustom(''); setPerson(''); setNewName(''); setNewMail(''); setDetail(''); setPtype('session'); });
   return (
-    <div className="quick-person">
-      <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre legal" aria-label="Nombre legal" />
-      <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Correo (opcional)" aria-label="Correo" />
-      <button type="button" className="btn small primary" disabled={busy || name.trim().length < 3} onClick={() => onSave(name, email)}>Guardar</button>
-      <button type="button" className="btn small" onClick={onCancel}>Cancelar</button>
-      <span className="muted small">Se agrega al directorio; los demás datos los completas ahí.</span>
+    <div className="lc-add">
+      <select value={role} onChange={(e) => setRole(e.target.value)} aria-label="Rol">
+        <option value="">{category === 'performer' ? 'Instrumento o voz…' : 'Rol…'}</option>
+        {roles.map(([k, v]) => <option key={k} value={k}>{category === 'performer' ? v : `${v} · ${k}`}</option>)}
+        <option value="__other">Otro…</option>
+      </select>
+      <select value={person} onChange={(e) => setPerson(e.target.value)} aria-label="Persona">
+        <option value="">Elegir del directorio…</option>
+        {fit.map((p) => <option key={p.id} value={p.id}>{p.credit_name ? `${p.credit_name} (${p.legal_name})` : p.legal_name}</option>)}
+        {rest.length > 0 && <optgroup label="Otras personas">{rest.map((p) => <option key={p.id} value={p.id}>{p.credit_name ? `${p.credit_name} (${p.legal_name})` : p.legal_name}</option>)}</optgroup>}
+        <option value="__new">＋ Nuevo perfil…</option>
+      </select>
+      {category === 'performer' ? (
+        <select value={ptype} onChange={(e) => setPtype(e.target.value)} aria-label="Tipo">
+          {Object.entries(PERF_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+      ) : (
+        <input value={detail} onChange={(e) => setDetail(e.target.value)} placeholder={STUDIO_ROLES.includes(realRole) ? 'Estudio y ciudad' : 'Nota (opcional)'} aria-label="Detalle" />
+      )}
+      <button type="button" className="btn" disabled={!ready || busy} onClick={add}>Agregar</button>
+      {role === '__other' && <input className="lc-wide" value={custom} onChange={(e) => setCustom(e.target.value)} placeholder="Escribe el rol" aria-label="Rol personalizado" autoFocus />}
+      {isNew && (
+        <div className="quick-person lc-wide">
+          <input autoFocus value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Nombre legal" aria-label="Nombre legal" />
+          <input type="email" value={newMail} onChange={(e) => setNewMail(e.target.value)} placeholder="Correo (opcional)" aria-label="Correo" />
+          <span className="muted small">Se agrega al directorio al dar Agregar; los demás datos los completas ahí.</span>
+        </div>
+      )}
     </div>
   );
 }
