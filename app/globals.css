@@ -576,3 +576,29 @@ main.wrap > *:nth-child(4) { animation-delay: .12s; } main.wrap > *:nth-child(n+
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 .dash-grid > * { min-width: 0; }
+.login-note { margin: 14px 0 0; padding-top: 14px; border-top: 1px solid var(--line); font-size: .8rem; color: var(--muted); max-width: 40ch; }
+
+/* inicio: más aire arriba */
+.home-hero { padding-top: 22px; padding-bottom: 6px; }
+@media (max-width: 560px) { .home-hero { padding-top: 10px; } }
+
+/* mis pendientes */
+.notes .note-add { display: flex; gap: 8px; align-items: center; }
+.notes .note-add input[type="text"] { flex: 1; }
+.notes .note-date { width: 150px; flex: none; }
+.note-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; }
+.note-list li { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto 28px; gap: 10px; align-items: center; padding: 7px 0; border-top: 1px solid var(--line); }
+.note-list li:first-child { border-top: 0; }
+.note-list input[type="checkbox"] { width: 17px; height: 17px; margin: 0; cursor: pointer; }
+.note-body { font-size: .9rem; line-height: 1.4; overflow-wrap: anywhere; }
+.note-list.done .note-body { color: var(--muted); text-decoration: line-through; }
+.note-list.done li { grid-template-columns: 20px minmax(0, 1fr) 28px; }
+.note-due { font-size: .74rem; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.note-due.warn { color: var(--warn); } .note-due.crit { color: var(--crit); }
+.note-x { width: 28px; height: 28px; opacity: 0; transition: opacity .15s; }
+.note-list li:hover .note-x, .note-x:focus-visible { opacity: 1; }
+@media (hover: none) { .note-x { opacity: .6; } }
+.note-done { margin-top: 10px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.linkish { border: 0; background: none; padding: 2px 0; color: var(--muted); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; font: inherit; }
+.linkish:hover { color: var(--ink); }
+.note-list li { animation: rise .25s var(--ease) both; }

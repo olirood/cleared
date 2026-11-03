@@ -58,3 +58,18 @@ viewerWrite === 'bloqueado' ? ok('Quien solo puede ver no escribe') : bad('Viewe
   await ee2('Color raro no se guarda', () => as2(A, `select set_my_account('Oliver', 'red; drop')`));
   await ee2('Sin sesión no se cambia nada', () => as2(null, `select set_my_account('X', null)`));
 }
+
+// mis pendientes: notas privadas de cada quien
+{
+  const { db: d3, ws: W3, as: as3, ok: ok3, bad: bad3, expectErr: ee3 } = await setupDb();
+  const A = '00000000-0000-0000-0000-0000000000a2', B = '00000000-0000-0000-0000-0000000000b2';
+  await d3.exec(`set session_replication_role = replica; insert into auth.users values ('${A}','a@test'),('${B}','b@test'); set session_replication_role = origin;
+    insert into memberships (workspace_id, user_id, role) values ('${W3.apollo}','${A}','admin'),('${W3.apollo}','${B}','operator');`);
+  await as3(A, `insert into notes (body, due_on) values ('Llamar a la editora', current_date + 2)`);
+  (await as3(A, `select count(*)::int n from notes`)).rows[0].n === 1 ? ok3('Anotas un pendiente y lo ves') : bad3('nota propia');
+  (await as3(B, `select count(*)::int n from notes`)).rows[0].n === 0 ? ok3('Nadie más ve tus pendientes, ni del mismo espacio') : bad3('se ven notas ajenas');
+  await ee3('No se puede crear una nota a nombre de otro', () => as3(B, `insert into notes (user_id, body) values ($1, 'x')`, [A]));
+  (await as3(B, `update notes set done_at = now() returning id`)).rows.length === 0 ? ok3('Nadie más puede marcar tus pendientes') : bad3('editó nota ajena');
+  await ee3('Una nota vacía no se guarda', () => as3(A, `insert into notes (body) values ('   ')`));
+  await ee3('Sin sesión no hay notas', () => as3(null, `select * from notes`));
+}

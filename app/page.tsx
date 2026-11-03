@@ -6,6 +6,7 @@ import { labelCopyStates, splitStates } from '@/lib/composition';
 import { ASSET_COLS, RECORDING_COLS, checklist, fmtDate, missingOf, type Asset, type Recording, type WorkspaceLegal } from '@/lib/tracks';
 import { daysUntil, greeting, longDate, nowInMexico } from '@/lib/greeting';
 import TopBar from './components/TopBar';
+import NotesCard, { type Note } from './components/NotesCard';
 
 type Signer = { id: string; snapshot: { legal_name?: string; credit_name?: string } | null; signatures: { status: string; expires_at: string } | { status: string; expires_at: string }[] | null };
 type Reminder = { key: string; text: string; href: string; urgency: number; tone: 'crit' | 'warn' | 'info' };
@@ -24,13 +25,14 @@ export default async function Home() {
   const today = nowInMexico().ymd;
   const now = Date.now();
 
-  const [works, ags, repRows, sent, wsQ, recQ] = await Promise.all([
+  const [works, ags, repRows, sent, wsQ, recQ, notesQ] = await Promise.all([
     sb.from('works').select('id, title, workspace_id, created_at'),
     sb.from('split_agreements').select(SUMMARY_SELECT).neq('status', 'void'),
     sb.rpc('workspace_reps'),
     sb.from('split_agreements').select('id, work_id, sent_at, split_participants(id, snapshot, signatures(status, expires_at))').eq('status', 'sent'),
     sb.from('workspaces').select('id, name, label_handles_legal'),
     sb.from('recordings').select(RECORDING_COLS),
+    sb.from('notes').select('id, body, due_on, done_at, created_at').order('created_at'),   // si la migración no corre aún, falla sin romper
   ]);
   const reps = buildReps((repRows.data ?? []) as RepRow[]);
   const workOf = (id: string) => (works.data ?? []).find((w) => w.id === id);
@@ -146,7 +148,7 @@ export default async function Home() {
             <div className="dash-grid">
               <div className="stack">
                 <section className="card glass">
-                  <header><h2>Pendientes</h2>{todo.length > 0 && <span className="pill">{todo.length}</span>}</header>
+                  <header><h2>Splits en curso</h2>{todo.length > 0 && <span className="pill">{todo.length}</span>}</header>
                   {todo.length ? (
                     <ul className="dash-list">
                       {todo.slice(0, 8).map((t) => (
@@ -155,6 +157,7 @@ export default async function Home() {
                     </ul>
                   ) : <p className="muted small">Nada esperando por ti. Lo que mandes a firma aparece aquí.</p>}
                 </section>
+                <NotesCard notes={(notesQ.data ?? []) as Note[]} today={today} ready={!notesQ.error} />
                 {drafts.length > 0 && (
                   <section className="card glass">
                     <header><h2>Borradores</h2><span className="pill">{drafts.length}</span></header>
