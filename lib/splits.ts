@@ -42,6 +42,7 @@ export type Participant = {
 export type Signature = {
   id: string; participant_id: string; status: 'pending' | 'signed' | 'void'; expires_at: string; signed_at: string | null;
   method: string | null; consent_version: string | null; typed_name: string | null; ip: string | null; user_agent: string | null;
+  signature_png?: string | null;
 };
 export type Approval = {
   agreement_id: string; workspace_id: string; status: 'approved' | 'changes_requested'; note: string | null;

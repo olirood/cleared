@@ -41,7 +41,7 @@ export default function Letter({ m }: { m: LetterModel }) {
       <div className="sigs">
         {m.rows.map((r, i) => (
           <div key={i} className="sig">
-            <div className="sline">{r.signed && <span className="esig" style={{ ['--n' as string]: (r.typedName || r.name).length }}>{r.typedName || r.name}</span>}</div>
+            <div className="sline">{r.signed && r.sigImage ? <img className="esig-img" src={r.sigImage} alt={`Firma de ${r.name}`} /> : r.signed && <span className="esig" style={{ ['--n' as string]: (r.typedName || r.name).length }}>{r.typedName || r.name}</span>}</div>
             <div className="sname">{r.name}</div>
             {r.signed
               ? <div className="stamp ok">Signed electronically · {fmtDateTime(r.signedAt)}</div>

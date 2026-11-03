@@ -66,9 +66,16 @@ await expectErr('Ya firmó: no se renueva su enlace', () => as(U.mar, `select is
 await as(U.oli, `select issue_signature_link($1,$2)`, [pKev, h('tok-kevin-2')]);
 (await one(null, `select signing_view($1) v`, [h('tok-kevin')])).v === null ? ok('Al renovar el enlace, el anterior deja de servir') : bad('enlace viejo sigue');
 await code('tok-kevin-2', '246810');
-(await sig('tok-kevin-2', '246810', 'Kevin Cuadras')) === 'completed' ? ok('Con la última firma el split queda firmado') : bad('no completó');
+// firma dibujada: solo PNG y de tamaño razonable; se guarda junto al nombre escrito
+const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+await expectErr('Una firma dibujada que no es PNG se rechaza', () => as(null, `select sign_split($1,'246810','Kevin Cuadras','v1','1.2.3.4','test','<svg>')`, [h('tok-kevin-2')]));
+await expectErr('Una firma dibujada gigante se rechaza', () => as(null, `select sign_split($1,'246810','Kevin Cuadras','v1','1.2.3.4','test',$2)`, [h('tok-kevin-2'), 'data:image/png;base64,' + 'A'.repeat(160000)]));
+(await one(null, `select sign_split($1,'246810','Kevin Cuadras','v1','1.2.3.4','test',$2) r`, [h('tok-kevin-2'), PNG])).r === 'completed' ? ok('Con la última firma (dibujada) el split queda firmado') : bad('no completó');
+const drawn = (await one(U.oli, `select method, signature_png from signatures where participant_id=$1`, [pKev]));
+drawn.signature_png === PNG && /firma dibujada/.test(drawn.method) ? ok('La firma dibujada se guarda y la constancia lo dice') : bad('drawn: ' + JSON.stringify(drawn).slice(0, 200));
+(await one(null, `select signing_view($1) v`, [h('tok-kevin-2')])).v.participants.some((p) => p.signature_png === PNG) ? ok('La carta del firmante muestra la firma dibujada') : bad('signing_view sin firma');
 const fin = (await one(null, `select completed_document($1,$2) d`, [h('tok-kevin-2'), await KEY()])).d;
-fin.participants.length === 2 && fin.participants.every((p) => p.snapshot.email && p.status === 'signed') ? ok('El servidor arma el documento final con los correos de todos') : bad('documento final');
+fin.participants.length === 2 && fin.participants.every((p) => p.snapshot.email && p.status === 'signed') && fin.participants.some((p) => p.signature_png === PNG) ? ok('El servidor arma el documento final con los correos de todos') : bad('documento final');
 await expectErr('El documento final pide la llave del servidor', () => as(null, `select completed_document($1,'otra')`, [h('tok-kevin-2')]));
 (await one(U.oli, `select status from split_agreements where id=$1`, [ag])).status === 'signed' ? ok('Estado: firmado') : bad('estado');
 const sees = (await as(U.mar, `select count(*)::int n from audit_events where entity='split' and entity_id=$1`, [ag])).rows[0].n;

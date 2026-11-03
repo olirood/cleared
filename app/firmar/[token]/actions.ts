@@ -16,7 +16,7 @@ export type SigningView = {
   agreement: { id: string; version: number; status: string; sent_at: string | null; completed_at: string | null; content_sha256: string | null };
   work: { title: string; artist: string | null; session_date: string | null };
   workspace: { name: string; template: string };
-  participants: { id: string; role: string; share_bp: number; credits: string | null; legal_name: string; credit_name: string | null; pro: string | null; ipi: string | null; publisher: string | null; signed: boolean; signed_at: string | null }[];
+  participants: { id: string; role: string; share_bp: number; credits: string | null; legal_name: string; credit_name: string | null; pro: string | null; ipi: string | null; publisher: string | null; signed: boolean; signed_at: string | null; signature_png?: string | null }[];
 };
 
 export async function signingView(token: string) {
@@ -61,13 +61,14 @@ export async function requestCode(token: string): Promise<{ error?: string; ok?:
   return { ok: true };
 }
 
-export async function sign(token: string, code: string, typedName: string, consent: boolean): Promise<{ error?: string; status?: string }> {
+export async function sign(token: string, code: string, typedName: string, consent: boolean, drawing: string | null = null): Promise<{ error?: string; status?: string }> {
   const v = await signingView(token);
   if (!v) return { error: 'Este enlace no es válido.' };
   const me = v.participants.find((p) => p.id === v.me);
   if (!consent) return { error: 'Marca la casilla para aceptar la firma electrónica.' };
   if (!me || normName(typedName) !== normName(me.legal_name)) return { error: `Escribe tu nombre completo tal como aparece en la carta: ${me?.legal_name ?? ''}` };
   if (!/^\d{6}$/.test(code.trim())) return { error: 'Escribe el código de 6 dígitos que te llegó por correo.' };
+  if (drawing !== null && (typeof drawing !== 'string' || !drawing.startsWith('data:image/png;base64,') || drawing.length > 150000)) return { error: 'Tu firma dibujada no se pudo leer. Bórrala y vuelve a dibujarla.' };
   const h = await headers();
   const ip = (h.get('cf-connecting-ip') || h.get('x-forwarded-for') || '').split(',')[0].trim();
   const sb = await supabaseServer();
@@ -75,8 +76,9 @@ export async function sign(token: string, code: string, typedName: string, conse
   const { data, error } = await sb.rpc('sign_split', {
     token_hash: tokenHash, code: code.trim(), typed_name: typedName.trim(), consent_version: CONSENT_V,
     ip: /^[0-9a-fA-F:.]+$/.test(ip) ? ip : '', user_agent: (h.get('user-agent') || '').slice(0, 400),
+    ...(drawing ? { signature_png: drawing } : {}),   // solo si la dibujó
   });
-  if (error) return { error: error.message.includes('caducó') ? 'El enlace caducó. Pide uno nuevo a quien te lo mandó.' : error.message.includes('no está en firma') || error.message.includes('ya no es válido') ? 'Esta versión del split ya no está en firma. Te mandarán un enlace nuevo.' : 'No se pudo registrar tu firma. Intenta de nuevo.' };
+  if (error) return { error: error.message.includes('caducó') ? 'El enlace caducó. Pide uno nuevo a quien te lo mandó.' : error.message.includes('no está en firma') || error.message.includes('ya no es válido') ? 'Esta versión del split ya no está en firma. Te mandarán un enlace nuevo.' : error.message.includes('dibujada') || error.message.includes('signature_png') ? 'Tu firma dibujada no se pudo guardar. Prueba con tu nombre o vuelve a dibujarla.' : 'No se pudo registrar tu firma. Intenta de nuevo.' };
   const r = data as string;
   if (r === 'no_code') return { error: 'Primero pide tu código.' };
   if (r === 'bad_code') return { error: 'El código no coincide. Revisa el último correo que te llegó.' };

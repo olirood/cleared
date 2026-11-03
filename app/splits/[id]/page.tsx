@@ -44,6 +44,9 @@ export default async function SplitPage({ params }: { params: Promise<{ id: stri
     sig = (s.data as string) ?? '';
     if (participants.length) {
       signatures = ((await sb.from('signatures').select(SIG_COLS).in('participant_id', participants.map((p) => p.id))).data ?? []) as Signature[];
+      // firmas dibujadas aparte: si la migración aún no corre, la página sigue funcionando sin ellas
+      const drawn = await sb.from('signatures').select('participant_id, signature_png').in('participant_id', participants.map((p) => p.id)).not('signature_png', 'is', null);
+      if (!drawn.error) for (const d of drawn.data ?? []) { const s = signatures.find((x) => x.participant_id === d.participant_id); if (s) s.signature_png = d.signature_png; }
     }
   }
   const { data: log } = agreements.length

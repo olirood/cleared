@@ -8,7 +8,7 @@ type Snap = { legal_name?: string; credit_name?: string; publisher?: string; pro
 export type FinalDoc = {
   agreement: { id: string; version: number; status: string; template: string | null; sent_at: string; completed_at: string; content_sha256: string };
   work: { id: string; title: string; artist: string | null; session_date: string | null }; workspace: { id: string; name: string; template: string };
-  participants: { role: string; share_bp: number; credits: string | null; snapshot: Snap; status: string; signed_at: string; typed_name: string; method: string; ip: string | null }[];
+  participants: { role: string; share_bp: number; credits: string | null; snapshot: Snap; status: string; signed_at: string; typed_name: string; method: string; ip: string | null; signature_png?: string | null }[];
   sender: { email: string | null; name: string } | null;
   approvers?: { email: string | null; name: string; workspace: string }[];
   log: { at: string; action: string; detail: Record<string, unknown> | null }[] | null;
@@ -24,7 +24,7 @@ export async function buildFinalPdf(d: FinalDoc) {
     title: d.work.title, artist: d.work.artist || '', version: d.agreement.version, status: 'signed',
     date: d.work.session_date || d.agreement.sent_at.slice(0, 10), template: d.agreement.template || d.workspace.template, workspace: d.workspace.name,
     rows: d.participants.map((p) => rowFrom({ role: p.role, share_bp: p.share_bp, credits: p.credits, snap: p.snapshot,
-      sig: { status: p.status, signed_at: p.signed_at, typed_name: p.typed_name, method: p.method, ip: p.ip } })),
+      sig: { status: p.status, signed_at: p.signed_at, typed_name: p.typed_name, method: p.method, ip: p.ip, signature_png: p.signature_png } })),
     hash: d.agreement.content_sha256, sentAt: d.agreement.sent_at, completedAt: d.agreement.completed_at,
     log: (d.log ?? []).filter((l) => ['created', 'sent', 'approved', 'signed', 'completed', 'new_version'].includes(l.action))
       .map((l) => ({ at: l.at, text: `${LOG[l.action] ?? l.action}${l.action === 'signed' && l.detail?.typed_name ? ` ${l.detail.typed_name}` : ''}` })),

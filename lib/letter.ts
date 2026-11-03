@@ -23,6 +23,7 @@ export function fmtEn(iso: string) {
 export type LetterRow = {
   name: string; artist: string; role: string; pct: string; publisher: string; pro: string; ipi: string; credits: string;
   signed: boolean; signedAt: string | null; typedName: string | null; method: string | null; ip: string | null; contact: string;
+  sigImage: string | null;   // firma dibujada (PNG), si la dibujó
 };
 export type LetterModel = {
   title: string; artist: string; version: number; status: string; date: string; template: string; workspace: string;
@@ -35,7 +36,7 @@ const PRO_EN: Record<string, string> = { Ninguna: 'None', Otra: 'Other' };
 export function rowFrom(p: {
   role: string; share_bp: number; credits: string | null;
   snap: { legal_name?: string | null; credit_name?: string | null; publisher?: string | null; pro?: string | null; ipi?: string | null; email?: string | null; phone?: string | null };
-  sig?: { status?: string; signed_at?: string | null; typed_name?: string | null; method?: string | null; ip?: string | null } | null;
+  sig?: { status?: string; signed_at?: string | null; typed_name?: string | null; method?: string | null; ip?: string | null; signature_png?: string | null } | null;
 }): LetterRow {
   const s = p.snap;
   return {
@@ -43,6 +44,7 @@ export function rowFrom(p: {
     publisher: s.publisher || 'N/A', pro: PRO_EN[s.pro || ''] ?? (s.pro || ''), ipi: s.ipi || '', credits: p.credits || '',
     signed: p.sig?.status === 'signed', signedAt: p.sig?.signed_at ?? null, typedName: p.sig?.typed_name ?? null,
     method: p.sig?.method ?? null, ip: p.sig?.ip ?? null, contact: s.phone || s.email || '',
+    sigImage: p.sig?.status === 'signed' && p.sig?.signature_png?.startsWith('data:image/png;base64,') ? p.sig.signature_png : null,
   };
 }
 
@@ -118,10 +120,10 @@ export async function letterPdf(m: LetterModel, logoOverride?: string | null): P
   doc.text(`Version ${m.version} · ${stateTxt}`, W - M, TOP + 10, { align: 'right' });
   y += 12;
   doc.setDrawColor(...RULE); doc.setLineWidth(0.8); doc.line(M, y, W - M, y);
-  y += 26;
+  y += 22;
 
   font('bold', 20, INK); doc.text(LETTER.title, M, y + 4); y += 18;
-  font('normal', 9.5, MUTED); doc.text(fmtEn(m.date), M, y + 9); y += 26;
+  font('normal', 9.5, MUTED); doc.text(fmtEn(m.date), M, y + 9); y += 22;
 
   para([[LETTER.salutation, 'normal']], { gap: 6 });
   para([[LETTER.intro, 'normal']], { gap: 10 });
@@ -157,7 +159,7 @@ export async function letterPdf(m: LetterModel, logoOverride?: string | null): P
     const roleL = doc.splitTextToSize(r.role, widths[1] - 2 * PADX) as string[];
     const pubL = doc.splitTextToSize(r.publisher, widths[2] - 2 * PADX) as string[];
     const proL = [r.pro || '—', ...(r.ipi ? [`IPI ${r.ipi}`] : [])];
-    const rh = Math.max(nameL.length * 11.5 + subL.length * 10.5, roleL.length * 11.5, pubL.length * 11.5, proL.length * 11.5) + 18;
+    const rh = Math.max(nameL.length * 11.5 + subL.length * 10.5, roleL.length * 11.5, pubL.length * 11.5, proL.length * 11.5) + 15;
     if (ensure(rh)) head();
     const ty = y + 13;
     font('bold', 9, INK); doc.text(nameL, xs[0] + PADX, ty, { lineHeightFactor: 1.28 });
@@ -176,7 +178,7 @@ export async function letterPdf(m: LetterModel, logoOverride?: string | null): P
   doc.setDrawColor(...INK); doc.setLineWidth(0.8); doc.line(M, y, W - M, y);
   font('bold', 8, MUTED); doc.setCharSpace(0.5); doc.text('TOTAL', M + PADX, y + 15); doc.setCharSpace(0);
   font('bold', 10, INK); doc.text(`${Math.round(total * 100) / 100}%`, W - M - PADX, y + 15, { align: 'right' });
-  y += 34;
+  y += 28;
 
   // ---------- cláusulas ----------
   para([['Originality of Contribution.', 'bold'], [' ' + LETTER.originality, 'normal']]);
@@ -184,13 +186,13 @@ export async function letterPdf(m: LetterModel, logoOverride?: string | null): P
   para([[LETTER.counterparts, 'normal']]);
 
   // el cierre y las firmas van juntos: si no caben, pasan completos a la hoja siguiente
-  const SIG_H = 80, SIG_LAST = 64, SIG_GAP = 36;
+  const SIG_H = 78, SIG_LAST = 58, SIG_GAP = 36;
   const colW = (CW - SIG_GAP) / 2;
   const sigRows = Math.ceil(m.rows.length / 2);
-  const closing = para([[LETTER.confirm, 'normal']], { measure: true, gap: 16 }) + 14 + 22 + (Math.min(sigRows, 2) - 1) * SIG_H + SIG_LAST;
+  const closing = para([[LETTER.confirm, 'normal']], { measure: true, gap: 14 }) + 14 + 20 + (Math.min(sigRows, 2) - 1) * SIG_H + SIG_LAST;
   if (y + closing > BOTTOM) newPage();
-  para([[LETTER.confirm, 'normal']], { gap: 16 });
-  font('bold', 9.6, INK); doc.text(LETTER.accepted, M, y + 9.6); y += 14 + 22;
+  para([[LETTER.confirm, 'normal']], { gap: 14 });
+  font('bold', 9.6, INK); doc.text(LETTER.accepted, M, y + 9.6); y += 14 + 20;
 
   // ---------- firmas ----------
   for (let i = 0; i < m.rows.length; i += 2) {
@@ -199,7 +201,14 @@ export async function letterPdf(m: LetterModel, logoOverride?: string | null): P
       if (!r) return;
       const x = M + k * (colW + SIG_GAP);
       const lineY = y + 34;
-      if (r.signed) {
+      if (r.signed && r.sigImage) {
+        // firma dibujada: cabe en la caja sobre la línea sin deformarse
+        try {
+          const ip = doc.getImageProperties(r.sigImage);
+          const k = Math.min((colW - 8) / ip.width, 40 / ip.height);
+          doc.addImage(r.sigImage, 'PNG', x + 2, lineY - 3 - ip.height * k, ip.width * k, ip.height * k, undefined, 'FAST');
+        } catch { /* si la imagen no se puede leer, queda la línea con el nombre */ }
+      } else if (r.signed) {
         // la firma escrita en letra manuscrita, más chica si el nombre es largo (nunca en dos renglones)
         const sig = r.typedName || r.name;
         let size = 24;

@@ -2,6 +2,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Letter from '../../components/Letter';
+import SignaturePad from '../../components/SignaturePad';
 import { downloadBlob, fileSafe, letterPdf, rowFrom, type LetterModel } from '@/lib/letter';
 import { fmtPct, fmtDateTime, ROLES } from '@/lib/splits';
 import { requestChange, requestCode, sign, type SigningView } from './actions';
@@ -15,6 +16,8 @@ export default function SignView({ token, view }: { token: string; view: Signing
   const [info, setInfo] = useState('');
   const [err, setErr] = useState('');
   const [mode, setMode] = useState<'sign' | 'change' | 'sent'>('sign');
+  const [sigMode, setSigMode] = useState<'name' | 'draw'>('name');
+  const [drawing, setDrawing] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [pending, start] = useTransition();
   const me = view.participants.find((p) => p.id === view.me)!;
@@ -25,7 +28,7 @@ export default function SignView({ token, view }: { token: string; view: Signing
     date: view.work.session_date || (a.sent_at || new Date().toISOString()).slice(0, 10), template: view.workspace.template, workspace: view.workspace.name,
     rows: view.participants.map((p) => rowFrom({ role: p.role, share_bp: p.share_bp, credits: p.credits,
       snap: { legal_name: p.legal_name, credit_name: p.credit_name, publisher: p.publisher, pro: p.pro, ipi: p.ipi },
-      sig: p.signed ? { status: 'signed', signed_at: p.signed_at, typed_name: p.legal_name } : null })),
+      sig: p.signed ? { status: 'signed', signed_at: p.signed_at, typed_name: p.legal_name, signature_png: p.signature_png } : null })),
     hash: a.content_sha256, sentAt: a.sent_at, completedAt: a.completed_at, log: [],
   };
   const pdf = () => start(async () => downloadBlob(await letterPdf(model), `Split ${fileSafe(view.work.title)} v${a.version}.pdf`));
@@ -56,7 +59,7 @@ export default function SignView({ token, view }: { token: string; view: Signing
       {!closed && view.my_status === 'pending' && mode === 'sign' && (
         <section className="card glass">
           <header><h2>Firmar</h2></header>
-          <form className="stack" onSubmit={(e) => { e.preventDefault(); setErr(''); start(async () => { const r = await sign(token, code, name, consent); if (r.error) setErr(r.error); else router.refresh(); }); }}>
+          <form className="stack" onSubmit={(e) => { e.preventDefault(); setErr(''); start(async () => { const r = await sign(token, code, name, consent, sigMode === 'draw' ? drawing : null); if (r.error) setErr(r.error); else router.refresh(); }); }}>
             <div className="code-step">
               <div>
                 <b>1. Pide tu código</b>
@@ -75,14 +78,24 @@ export default function SignView({ token, view }: { token: string; view: Signing
               <span className="hint">Tal como aparece en la carta: {me.legal_name}</span>
               <input type="text" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required />
             </label>
+            <div className="f">
+              <span className="flabel">4. Cómo se ve tu firma</span>
+              <div className="seg" role="group" aria-label="Tipo de firma" style={{ width: 'fit-content' }}>
+                <button type="button" className="seg-b" aria-pressed={sigMode === 'name'} onClick={() => setSigMode('name')}>Con mi nombre</button>
+                <button type="button" className="seg-b" aria-pressed={sigMode === 'draw'} onClick={() => setSigMode('draw')}>Dibujarla</button>
+              </div>
+              {sigMode === 'name'
+                ? <div className="sigpreview"><span className="esig">{name.trim() || me.legal_name}</span></div>
+                : <SignaturePad onChange={setDrawing} />}
+            </div>
             <label className="consent">
               <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-              <span>Leí la carta y acepto firmarla por medios electrónicos. Mi nombre escrito, junto con este enlace personal, la fecha, la hora y mi dirección IP, valen como mi firma (Código de Comercio, arts. 89 a 93).</span>
+              <span>Leí la carta y acepto firmarla por medios electrónicos. {sigMode === 'draw' ? 'Mi firma dibujada y mi nombre escrito' : 'Mi nombre escrito'}, junto con este enlace personal, la fecha, la hora y mi dirección IP, valen como mi firma (Código de Comercio, arts. 89 a 93).</span>
             </label>
             {err && <p className="form-msg crit" role="alert">{err}</p>}
             <div className="row spread">
               <button type="button" className="btn" onClick={() => { setErr(''); setMode('change'); }}>Pedir un cambio</button>
-              <button className="btn primary" disabled={pending || !consent || !name.trim() || code.length !== 6}>{pending ? 'Firmando…' : 'Firmar'}</button>
+              <button className="btn primary" disabled={pending || !consent || !name.trim() || code.length !== 6 || (sigMode === 'draw' && !drawing)}>{pending ? 'Firmando…' : 'Firmar'}</button>
             </div>
           </form>
         </section>
