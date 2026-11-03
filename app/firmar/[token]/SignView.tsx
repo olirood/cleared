@@ -69,7 +69,7 @@ export default function SignView({ token, view }: { token: string; view: Signing
           {!accepted ? (
             <div className="gate">
               <b>Antes de firmar</b>
-              <p className="muted small">Lee el <button type="button" className="linkish" onClick={() => setAviso(true)}>{AVISO_TITLE}</button>: cómo funciona tu firma, cómo obtener tus copias, qué hacer si prefieres papel y cómo se usan tus datos.</p>
+              <p className="muted small">Lee el <button type="button" className="linkish" onClick={() => setAviso(true)}>{AVISO_TITLE}</button>: cómo funciona tu firma, cómo obtener tus copias, qué hacer si algo está mal y cómo se usan tus datos.</p>
               <label className="consent">
                 <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
                 <span>Acepto usar documentos y firmas electrónicas, y el uso de mis datos descrito en el aviso.</span>
@@ -128,7 +128,6 @@ export default function SignView({ token, view }: { token: string; view: Signing
           <form className="stack" onSubmit={(e) => { e.preventDefault(); setErr(''); start(async () => { const r = await requestChange(token, note); if (r.error) setErr(r.error); else setMode('sent'); }); }}>
             <label className="f">Qué hay que cambiar
               <textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ej. Mi IPI está mal, o mi porcentaje es otro" required />
-              <button type="button" className="linkish small" style={{ alignSelf: 'flex-start' }} onClick={() => setNote('Prefiero firmar en papel, no de forma electrónica.')}>Prefiero firmar en papel</button>
             </label>
             {err && <p className="form-msg crit" role="alert">{err}</p>}
             <div className="row spread">
