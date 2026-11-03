@@ -35,6 +35,7 @@ export async function requestCode(token: string): Promise<{ error?: string; ok?:
   const { data, error } = await sb.rpc('prepare_signing_code', { token_hash: await hash(token), code, server_key: process.env.CLEARED_SERVER_KEY });
   if (error) {
     const m = error.message;
+    console.error('[cleared] prepare_signing_code:', m);
     return { error: m.includes('Espera') ? 'Ya te mandamos un código. Espera 30 segundos para pedir otro.'
       : m.includes('Demasiados') ? 'Pediste demasiados códigos. Intenta en una hora.'
       : m.includes('Sin correo') ? 'Tu correo no está registrado en este split. Avísale a quien te lo mandó.'
@@ -50,8 +51,11 @@ export async function requestCode(token: string): Promise<{ error?: string; ok?:
 <div style="font-size:32px;font-weight:700;letter-spacing:8px;font-family:ui-monospace,Menlo,monospace;background:#f2f2f3;border-radius:12px;padding:16px;text-align:center">${code}</div>
 <p style="margin:16px 0 0;font-size:13px;color:#555;line-height:1.5">Vence en 10 minutos. No lo compartas con nadie: escribirlo vale como tu firma.</p>`),
     });
-  } catch {
-    return { error: 'No se pudo mandar el correo. Intenta de nuevo en un momento.' };
+  } catch (e) {
+    const detail = String((e as Error)?.message || e).slice(0, 160);
+    console.error('[cleared] envío de código falló:', detail);
+    const code = detail.match(/smtp (\d{3})/)?.[1];
+    return { error: `No se pudo mandar el correo${code ? ` (servidor de correo: ${code})` : detail.includes('timeout') ? ' (sin respuesta del servidor de correo)' : ''}. Intenta de nuevo en un momento.` };
   }
   return { ok: true };
 }
@@ -80,7 +84,7 @@ export async function sign(token: string, code: string, typedName: string, conse
     try {
       const { data: doc } = await sb.rpc('completed_document', { token_hash: tokenHash, server_key: process.env.CLEARED_SERVER_KEY });
       if (doc) await sendFinalDocument(doc);
-    } catch { /* la firma ya quedó; el correo final se puede reenviar después */ }
+    } catch (e) { console.error('[cleared] copia final falló:', String((e as Error)?.message || e).slice(0, 160)); /* la firma ya quedó; se puede reenviar */ }
   }
   return { status: r };
 }

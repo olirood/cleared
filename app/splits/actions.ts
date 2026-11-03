@@ -289,7 +289,7 @@ export async function resendFinal(agreementId: string): Promise<Result> {
   if (!mailConfigured()) return { error: 'El correo de Cleared no está configurado.' };
   const { data, error } = await sb.rpc('completed_document_for', { agreement: agreementId, server_key: process.env.CLEARED_SERVER_KEY });
   if (error || !data) return { error: 'No se pudo armar el documento.' };
-  try { await sendFinalDocument(data); } catch { return { error: 'No se pudo mandar el correo.' }; }
+  try { await sendFinalDocument(data); } catch (e) { const d = String((e as Error)?.message || e).slice(0, 160); console.error('[cleared] reenvío falló:', d); return { error: `No se pudo mandar el correo${d.match(/smtp (\d{3})/) ? ` (servidor de correo: ${d.match(/smtp (\d{3})/)![1]})` : ''}.` }; }
   await log(sb, a.workspace_id, agreementId, 'final_sent');
   return {};
 }
