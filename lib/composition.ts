@@ -2,17 +2,22 @@ import type { supabaseServer } from './supabase/server';
 import { lcMissing, type CompRow, type Credit, type LCRecording } from './labelcopy';
 import { SUMMARY_SELECT, summarize, type AgreementSummary } from './splitStatus';
 import type { SplitState } from './tracks';
+import { buildReps, type RepRow } from './reps';
 
 type SB = Awaited<ReturnType<typeof supabaseServer>>;
 
 // Estado del split vigente de varias obras (para listas de tracks)
 export async function splitStates(sb: SB, works: { id: string; workspace_id: string }[]): Promise<Record<string, SplitState>> {
   if (!works.length) return {};
-  const { data } = await sb.from('split_agreements').select(SUMMARY_SELECT).neq('status', 'void').in('work_id', works.map((w) => w.id));
+  const [{ data }, { data: repRows }] = await Promise.all([
+    sb.from('split_agreements').select(SUMMARY_SELECT).neq('status', 'void').in('work_id', works.map((w) => w.id)),
+    sb.rpc('workspace_reps'),
+  ]);
+  const reps = buildReps((repRows ?? []) as RepRow[]);
   const out: Record<string, SplitState> = {};
   for (const w of works) {
     const a = ((data ?? []) as unknown as AgreementSummary[]).find((x) => x.work_id === w.id);
-    out[w.id] = { status: a ? (a.status as SplitState['status']) : 'none', label: summarize(a, w.workspace_id).label };
+    out[w.id] = { status: a ? (a.status as SplitState['status']) : 'none', label: summarize(a, w.workspace_id, reps).label };
   }
   return out;
 }

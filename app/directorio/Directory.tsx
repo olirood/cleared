@@ -2,12 +2,13 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
-import { KINDS, PROS, canWriteRole, kindLabel, missing, normName, cleanIpi, type Membership, type Person, type Workspace } from '@/lib/people';
+import { KINDS, NATIONALITIES, PHONE_COUNTRIES, PROS, canWriteRole, kindLabel, missing, normName, cleanIpi, joinPhone, splitPhone, type Membership, type Person, type Workspace } from '@/lib/people';
+import { repFor, repLabel, type Rep } from '@/lib/reps';
 import { deletePerson, savePerson, type PersonInput } from './actions';
 
-type Props = { people: Person[]; workspaces: Workspace[]; memberships: Membership[] };
+type Props = { people: Person[]; workspaces: Workspace[]; memberships: Membership[]; reps: Rep[] };
 
-export default function Directory({ people, workspaces, memberships }: Props) {
+export default function Directory({ people, workspaces, memberships, reps }: Props) {
   const router = useRouter();
   const [q, setQ] = useState('');
   const [kind, setKind] = useState('');
@@ -66,7 +67,7 @@ export default function Directory({ people, workspaces, memberships }: Props) {
                       <td>
                         <strong>{p.legal_name}</strong>
                         {sub && <div className="muted small">{sub}</div>}
-                        {p.represented_by && <div className="small" style={{ marginTop: 4 }}>Representa: {wsName(p.represented_by)}</div>}
+                        {p.represented_by && <div className="small" style={{ marginTop: 4 }}>Lo representa {repLabel(reps, p.represented_by, wsName(p.represented_by))}</div>}
                       </td>
                       <td>
                         <div className="tags">{p.kinds.map((k) => <span key={k} className="pill">{kindLabel(k)}</span>)}</div>
@@ -96,6 +97,7 @@ export default function Directory({ people, workspaces, memberships }: Props) {
           people={people}
           workspaces={workspaces}
           memberships={memberships}
+          reps={reps}
           onClose={() => setOpen(null)}
           onOpen={(p) => setOpen(p)}
           onDone={done}
@@ -106,8 +108,8 @@ export default function Directory({ people, workspaces, memberships }: Props) {
   );
 }
 
-export function ProfilePanel({ person, people, workspaces, memberships, onClose, onOpen, onDone, preset }: {
-  person: Person | null; people: Person[]; workspaces: Workspace[]; memberships: Membership[];
+export function ProfilePanel({ person, people, workspaces, memberships, onClose, onOpen, onDone, preset, reps }: {
+  person: Person | null; people: Person[]; workspaces: Workspace[]; memberships: Membership[]; reps?: Rep[];
   onClose: () => void; onOpen: (p: Person) => void; onDone: (msg: string, id?: string) => void; preset?: string[];
 }) {
   const roleIn = (id: string | null) => memberships.find((m) => m.workspace_id === id)?.role;
@@ -115,7 +117,7 @@ export function ProfilePanel({ person, people, workspaces, memberships, onClose,
   const wsName = (id: string | null) => workspaces.find((w) => w.id === id)?.name ?? '';
   const canEdit = !person || canWriteRole(roleIn(person.owner_workspace_id)) || canWriteRole(roleIn(person.represented_by));
   const canDelete = !!person && ['owner', 'admin'].includes(roleIn(person.owner_workspace_id) ?? '');
-  const admin = person ? wsName(person.represented_by || person.owner_workspace_id) : '';
+  const admin = person ? (reps ? repLabel(reps, person.represented_by || person.owner_workspace_id, wsName(person.represented_by || person.owner_workspace_id)) : wsName(person.represented_by || person.owner_workspace_id)) : '';
 
   const [f, setF] = useState<PersonInput>(() => ({
     id: person?.id,
@@ -182,12 +184,17 @@ export function ProfilePanel({ person, people, workspaces, memberships, onClose,
     });
   };
 
-  const field = (k: keyof PersonInput, label: string, hint = '', type = 'text', cls = '') => (
+  const field = (k: keyof PersonInput, label: string, hint = '', type = 'text', cls = '', req = false) => (
     <label className={`f ${cls}`}>
-      <span>{label}{hint && <> <span className="hint">{hint}</span></>}</span>
-      <input ref={k === 'legal_name' ? first : undefined} type={type} value={String(f[k] ?? '')} onChange={(e) => set(k, e.target.value as never)} />
+      <span>{label}{req && <span className="req" aria-hidden="true"> *</span>}{hint && <> <span className="hint">{hint}</span></>}</span>
+      <input ref={k === 'legal_name' ? first : undefined} type={type} value={String(f[k] ?? '')} required={req} onChange={(e) => set(k, e.target.value as never)} />
     </label>
   );
+  const songwriter = f.kinds.includes('songwriter');
+  const showIsni = f.kinds.some((k) => ['artist', 'producer', 'engineer', 'musician'].includes(k)) || !!f.isni;
+  const phone = splitPhone(f.phone);
+  const setPhone = (country: string, number: string) => set('phone', joinPhone(country, number) || (number ? number : ''));
+  const repList: Rep[] = reps ?? workspaces.map((w) => ({ key: w.id, label: w.name, ids: [w.id], users: [] }));
   const others = workspaces.map((w) => w.name).join(', ');
 
   return createPortal(
@@ -213,45 +220,70 @@ export function ProfilePanel({ person, people, workspaces, memberships, onClose,
                 </label>
               )}
               <fieldset><legend>Persona</legend><div className="grid2">
-                {field('legal_name', 'Nombre legal', 'como en su INE', 'text', 'span2')}
+                {field('legal_name', 'Nombre legal', 'como en su INE', 'text', 'span2', true)}
                 {field('credit_name', 'Nombre en créditos', 'artístico')}
-                {field('nationality', 'Nacionalidad')}
-                {field('email', 'Correo', '', 'email')}
-                {field('phone', 'WhatsApp', '', 'tel')}
+                <label className="f"><span>Nacionalidad</span>
+                  <select value={NATIONALITIES.includes(f.nationality) || !f.nationality ? f.nationality : '__other'}
+                    onChange={(e) => set('nationality', e.target.value === '__other' ? ' ' : e.target.value)}>
+                    <option value="">Elegir…</option>
+                    {NATIONALITIES.map((n) => <option key={n}>{n}</option>)}
+                    <option value="__other">Otra…</option>
+                  </select>
+                  {f.nationality && !NATIONALITIES.includes(f.nationality) && (
+                    <input type="text" className="nat-other" value={f.nationality.trim()} placeholder="Escribe la nacionalidad" onChange={(e) => set('nationality', e.target.value || ' ')} />
+                  )}
+                </label>
+                {field('email', 'Correo', songwriter ? 'ahí le llega su código para firmar' : '', 'email', '', songwriter)}
+                <label className="f"><span>WhatsApp</span>
+                  <span className="phone">
+                    <select value={phone.country} aria-label="Lada del país" onChange={(e) => setPhone(e.target.value, phone.number)}>
+                      {PHONE_COUNTRIES.filter(([c]) => !['DO', 'PR', 'CA'].includes(c)).map(([c, flag, code]) => <option key={c} value={c}>{flag} {code}</option>)}
+                    </select>
+                    <input type="tel" value={phone.number} placeholder="55 1234 5678" onChange={(e) => setPhone(phone.country, e.target.value)} />
+                  </span>
+                </label>
               </div></fieldset>
-              <fieldset><legend>Qué hace</legend>
+              <fieldset><legend>Qué hace <span className="req" aria-hidden="true">*</span></legend>
                 <div className="chips">
                   {KINDS.map(([k, label]) => (
                     <label key={k} className="chip"><input type="checkbox" checked={f.kinds.includes(k)} onChange={() => toggleKind(k)} /><span>{label}</span></label>
                   ))}
                 </div>
-                <div className="grid2" style={{ marginTop: 12 }}>
-                  {field('instruments', 'Instrumentos', 'si es músico')}
-                  {field('isni', 'ISNI', 'opcional')}
-                </div>
+                {(f.kinds.includes('musician') || showIsni) && (
+                  <div className="grid2" style={{ marginTop: 12 }}>
+                    {f.kinds.includes('musician') && field('instruments', 'Instrumentos', 'ej. Requinto, bajo sexto')}
+                    {showIsni && field('isni', 'ISNI', 'opcional, 16 dígitos')}
+                  </div>
+                )}
               </fieldset>
-              <fieldset><legend>Datos editoriales <span className="hint" style={{ fontWeight: 400 }}>solo si es autor o compositor</span></legend><div className="grid2">
-                <label className="f"><span>Sociedad de gestión</span>
-                  <select value={f.pro} onChange={(e) => set('pro', e.target.value)}>
-                    <option value="">Elegir…</option>
-                    {PROS.map((s) => <option key={s}>{s}</option>)}
-                  </select>
-                </label>
-                {field('pro_member_no', 'Número de socio', 'opcional')}
-                {field('ipi', 'IPI', '9 a 11 dígitos')}
-                <span />
-                {field('publisher_name', 'Editora', 'vacío si no tiene')}
-                {field('publisher_ipi', 'IPI de la editora')}
-                {field('publisher_email', 'Correo de la editora', 'la disquera lo pide', 'email', 'span2')}
-              </div></fieldset>
+              {songwriter && (
+                <fieldset><legend>Datos editoriales</legend><div className="grid2">
+                  <label className="f"><span>Sociedad de gestión <span className="req" aria-hidden="true">*</span></span>
+                    <select value={f.pro} onChange={(e) => set('pro', e.target.value)} required>
+                      <option value="">Elegir…</option>
+                      {PROS.map((s) => <option key={s}>{s}</option>)}
+                    </select>
+                  </label>
+                  {field('pro_member_no', 'Número de socio', 'opcional')}
+                  {field('ipi', 'IPI', f.pro && f.pro !== 'Ninguna' ? '9 a 11 dígitos · lo pide el split' : '9 a 11 dígitos')}
+                  <span />
+                  {field('publisher_name', 'Editora', 'vacío si no tiene')}
+                  {f.publisher_name.trim() && field('publisher_ipi', 'IPI de la editora')}
+                  {f.publisher_name.trim() && field('publisher_email', 'Correo de la editora', 'para licencias y regalías', 'email', 'span2')}
+                </div></fieldset>
+              )}
               <fieldset><legend>Representación</legend><div className="grid2">
                 <label className="f"><span>Lo representa <span className="hint">en la plataforma</span></span>
-                  <select value={f.represented_by} onChange={(e) => set('represented_by', e.target.value)}>
+                  <select value={repFor(repList, f.represented_by)?.key ?? ''}
+                    onChange={(e) => {
+                      const r = repList.find((x) => x.key === e.target.value);
+                      set('represented_by', r ? (r.ids.includes(f.owner_workspace_id) ? f.owner_workspace_id : r.ids[0]) : '');
+                    }}>
                     <option value="">Nadie, o alguien fuera de la plataforma</option>
-                    {workspaces.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+                    {repList.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
                   </select>
                 </label>
-                <p className="muted small" style={{ alignSelf: 'end' }}>Si otro espacio lo pone en un split, quien lo representa lo ve y aprueba su parte antes de mandarlo a firma.</p>
+                <p className="muted small" style={{ alignSelf: 'end' }}>Si alguien más lo pone en un split, quien lo representa lo ve y aprueba su parte antes de mandarlo a firma.</p>
               </div></fieldset>
               <label className="row share">
                 <input type="checkbox" checked={f.shared} onChange={(e) => set('shared', e.target.checked)} />

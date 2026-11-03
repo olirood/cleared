@@ -91,3 +91,15 @@ await as(U.oli, `insert into split_agreements (work_id, version) values ($1,2)`,
 ok('Se crea la versión 2 después de anular');
 await expectErr('Sin sesión no se leen huellas de participantes', () => as(null, `select participants_sig($1)`, [ag]));
 
+
+// representantes: misma gente en dos espacios no se aprueba a sí misma
+const reps = (await as(U.oli, `select name, members, members_key from workspace_reps()`)).rows;
+const kr = reps.find((r) => r.name === 'Kevin Cuadras'), or_ = reps.find((r) => r.name === 'Octavio Cuadras');
+kr && or_ && kr.members_key === or_.members_key && kr.members_key !== '' ? ok('Kevin y Octavio los opera la misma persona (se muestran como "Oliver")') : bad('reps: ' + JSON.stringify(reps));
+await expectErr('Sin sesión no se ven representantes', () => as(null, `select * from workspace_reps()`));
+const kevRep = (await one(U.oli, `insert into people (owner_workspace_id, represented_by, legal_name, kinds, pro) values ($1,$1,'Compositor de Kevin','{songwriter}','SACM') returning id`, [W.kevin])).id;
+const w4 = (await one(U.oli, `insert into works (workspace_id, title) values ($1,'Octavio con Kevin') returning id`, [W.octavio])).id;
+const ag4 = (await one(U.oli, `insert into split_agreements (work_id, version) values ($1,1) returning id`, [w4])).id;
+await as(U.oli, `insert into split_participants (agreement_id, person_id, role, share_bp) values ($1,$2,'songwriter',10000)`, [ag4, kevRep]);
+await as(U.oli, `update split_agreements set status='sent' where id=$1`, [ag4]);
+ok('Oliver manda en Octavio un split con alguien que él mismo representa en Kevin, sin aprobarse a sí mismo');

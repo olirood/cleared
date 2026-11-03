@@ -6,12 +6,13 @@ import type { Work } from '@/lib/splits';
 import { summarize, type AgreementSummary } from '@/lib/splitStatus';
 import { fmtDate } from '@/lib/tracks';
 import type { Member } from '@/lib/session';
+import type { Rep } from '@/lib/reps';
 import Panel from '../components/Panel';
 import WorkForm from './WorkForm';
 
 type W = Work & { recordings: { id: string; title: string }[] };
 
-export default function SplitList({ works, agreements, workspaces, memberships }: { works: W[]; agreements: AgreementSummary[]; workspaces: { id: string; name: string }[]; memberships: Member[] }) {
+export default function SplitList({ works, agreements, workspaces, memberships, reps }: { works: W[]; agreements: AgreementSummary[]; workspaces: { id: string; name: string }[]; memberships: Member[]; reps: Rep[] }) {
   const router = useRouter();
   const [filter, setFilter] = useState('');
   const [q, setQ] = useState('');
@@ -22,7 +23,7 @@ export default function SplitList({ works, agreements, workspaces, memberships }
 
   const rows = useMemo(() => works.map((w) => {
     const a = agreements.find((x) => x.work_id === w.id);
-    const s = summarize(a, w.workspace_id);
+    const s = summarize(a, w.workspace_id, reps);
     const external = !mine.has(w.workspace_id);
     const myTurn = s.reps.some((r) => mine.has(r.ws) && r.state !== 'ok') && a?.status === 'draft';
     return { w, s, external, myTurn };

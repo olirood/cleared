@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { requireSession } from '@/lib/session';
 import { SUMMARY_SELECT, summarize, type AgreementSummary } from '@/lib/splitStatus';
+import { buildReps, type RepRow } from '@/lib/reps';
 import TopBar from './components/TopBar';
 
 const ROLE: Record<string, string> = { owner: 'Dueño', admin: 'Administración', operator: 'Operación', viewer: 'Solo lectura' };
@@ -8,16 +9,18 @@ const ROLE: Record<string, string> = { owner: 'Dueño', admin: 'Administración'
 export default async function Home() {
   const { sb, memberships, name } = await requireSession();
   const mine = new Set(memberships.map((m) => m.workspace_id));
-  const [ws, works, ags, recs] = await Promise.all([
+  const [ws, works, ags, recs, repRows] = await Promise.all([
     sb.from('workspaces').select('id, name, slug, letter_template').order('name'),
     sb.from('works').select('id, title, workspace_id'),
     sb.from('split_agreements').select(SUMMARY_SELECT).neq('status', 'void'),
     sb.from('recordings').select('id', { count: 'exact', head: true }),
+    sb.rpc('workspace_reps'),
   ]);
+  const reps = buildReps((repRows.data ?? []) as RepRow[]);
   const workOf = (id: string) => (works.data ?? []).find((w) => w.id === id);
   const items = ((ags.data ?? []) as unknown as AgreementSummary[]).map((a) => {
     const w = workOf(a.work_id);
-    return { a, w, s: summarize(a, w?.workspace_id ?? '') };
+    return { a, w, s: summarize(a, w?.workspace_id ?? '', reps) };
   }).filter((x) => x.w);
   const toApprove = items.filter((x) => x.a.status === 'draft' && x.s.reps.some((r) => mine.has(r.ws) && r.state !== 'ok'));
   const changed = items.filter((x) => x.a.status === 'sent' && (x.a.change_requests?.length ?? 0) > 0 && mine.has(x.w!.workspace_id));

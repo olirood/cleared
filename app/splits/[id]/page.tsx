@@ -3,6 +3,7 @@ import { requireSession } from '@/lib/session';
 import { AGREEMENT_COLS, PART_COLS, SIG_COLS, WORK_COLS, type Agreement, type Approval, type Participant, type Signature, type Work } from '@/lib/splits';
 import type { Person } from '@/lib/people';
 import TopBar from '../../components/TopBar';
+import { buildReps, type RepRow } from '@/lib/reps';
 import SplitEditor from './SplitEditor';
 
 export const metadata = { title: 'Split · Cleared' };
@@ -17,11 +18,12 @@ export default async function SplitPage({ params }: { params: Promise<{ id: stri
   if (!w) notFound();
   const work = w as Work;
 
-  const [wsAll, ags, recs, dir] = await Promise.all([
+  const [wsAll, ags, recs, dir, repRows] = await Promise.all([
     sb.from('workspaces').select('id, name, letter_template').order('name'),
     sb.from('split_agreements').select(AGREEMENT_COLS).eq('work_id', id).order('version', { ascending: false }),
     sb.from('recordings').select('id, title, workspace_id').eq('work_id', id),
     sb.from('people').select(PEOPLE_COLS).contains('kinds', ['songwriter']).order('legal_name'),
+    sb.rpc('workspace_reps'),
   ]);
   const agreements = (ags.data ?? []) as Agreement[];
   const current = agreements.find((a) => a.status !== 'void') ?? agreements[0] ?? null;
@@ -71,6 +73,7 @@ export default async function SplitPage({ params }: { params: Promise<{ id: stri
           log={(log ?? []) as { id: number; action: string; detail: Record<string, unknown> | null; at: string; entity_id: string; workspace_id: string | null }[]}
           tracks={(recs.data ?? []) as { id: string; title: string }[]}
           people={[...directory, ...extra]}
+          reps={buildReps((repRows.data ?? []) as RepRow[])}
         />
       </main>
     </>

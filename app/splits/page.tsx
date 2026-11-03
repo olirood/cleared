@@ -2,15 +2,17 @@ import { requireSession } from '@/lib/session';
 import { WORK_COLS, type Work } from '@/lib/splits';
 import { SUMMARY_SELECT, type AgreementSummary } from '@/lib/splitStatus';
 import TopBar from '../components/TopBar';
+import { buildReps, type RepRow } from '@/lib/reps';
 import SplitList from './SplitList';
 
 export const metadata = { title: 'Splits · Cleared' };
 
 export default async function SplitsPage() {
   const { sb, memberships, name } = await requireSession();
-  const [works, ws] = await Promise.all([
+  const [works, ws, repRows] = await Promise.all([
     sb.from('works').select(`${WORK_COLS}, recordings(id, title)`).order('created_at', { ascending: false }),
     sb.from('workspaces').select('id, name').order('name'),
+    sb.rpc('workspace_reps'),
   ]);
   const list = (works.data ?? []) as (Work & { recordings: { id: string; title: string }[] })[];
   const ags = list.length
@@ -20,7 +22,7 @@ export default async function SplitsPage() {
     <>
       <TopBar name={name} />
       <main className="wrap">
-        <SplitList works={list} agreements={ags} workspaces={ws.data ?? []} memberships={memberships} />
+        <SplitList works={list} agreements={ags} workspaces={ws.data ?? []} memberships={memberships} reps={buildReps((repRows.data ?? []) as RepRow[])} />
       </main>
     </>
   );

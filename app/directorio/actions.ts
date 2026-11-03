@@ -44,6 +44,9 @@ export async function savePerson(input: PersonInput): Promise<SaveResult> {
   const pubIpi = cleanIpi(t(input.publisher_ipi));
   if (!t(input.legal_name)) return { error: 'Escribe el nombre legal: es el que va en el contrato.' };
   if (!kinds.length) return { error: 'Marca al menos una cosa que hace esta persona.' };
+  if (kinds.includes('songwriter') && !t(input.email)) return { error: 'Escribe su correo: ahí le llega el código para firmar sus splits.' };
+  if (kinds.includes('songwriter') && !t(input.pro)) return { error: 'Elige su sociedad de gestión (o "Ninguna").' };
+  if (t(input.email) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t(input.email))) return { error: 'Revisa el correo: parece incompleto.' };
   if (ipi && !/^\d{9,11}$/.test(ipi)) return { error: 'El IPI lleva de 9 a 11 dígitos, sin letras.' };
   if (pubIpi && !/^\d{9,11}$/.test(pubIpi)) return { error: 'El IPI de la editora lleva de 9 a 11 dígitos.' };
   if (input.pro && !PROS.includes(input.pro)) return { error: 'Elige una sociedad de la lista.' };
@@ -54,8 +57,9 @@ export async function savePerson(input: PersonInput): Promise<SaveResult> {
 
   // editora: se reutiliza si ya existe (por IPI o nombre), si no se crea en el espacio del perfil
   let publisher_id: string | null = null;
-  const pubName = t(input.publisher_name);
-  if (pubName || pubIpi) {
+  const isWriter = kinds.includes('songwriter');
+  const pubName = isWriter ? t(input.publisher_name) : '';
+  if (pubName) {
     let found: { id: string } | null = null;
     if (pubIpi) found = (await sb.from('publishers').select('id').eq('ipi', pubIpi).maybeSingle()).data;
     if (!found && pubName) {

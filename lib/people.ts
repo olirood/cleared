@@ -52,3 +52,29 @@ export function missing(p: Pick<Person, 'legal_name' | 'kinds' | 'pro' | 'ipi'>)
 export const normName = (s: string) =>
   s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 export const cleanIpi = (s: string) => s.replace(/[\s-]/g, '');
+
+export const NATIONALITIES = [
+  'Mexicana', 'Estadounidense', 'Colombiana', 'Argentina', 'Española', 'Venezolana', 'Chilena', 'Peruana',
+  'Guatemalteca', 'Salvadoreña', 'Hondureña', 'Costarricense', 'Panameña', 'Puertorriqueña', 'Dominicana', 'Cubana',
+  'Brasileña', 'Canadiense',
+];
+
+// Lada por país para WhatsApp (bandera con emoji)
+export const PHONE_COUNTRIES = [
+  ['MX', '🇲🇽', '+52'], ['US', '🇺🇸', '+1'], ['CO', '🇨🇴', '+57'], ['AR', '🇦🇷', '+54'], ['ES', '🇪🇸', '+34'],
+  ['VE', '🇻🇪', '+58'], ['CL', '🇨🇱', '+56'], ['PE', '🇵🇪', '+51'], ['GT', '🇬🇹', '+502'], ['SV', '🇸🇻', '+503'],
+  ['HN', '🇭🇳', '+504'], ['CR', '🇨🇷', '+506'], ['PA', '🇵🇦', '+507'], ['DO', '🇩🇴', '+1'], ['PR', '🇵🇷', '+1'],
+  ['CU', '🇨🇺', '+53'], ['BR', '🇧🇷', '+55'], ['CA', '🇨🇦', '+1'],
+] as const;
+// "+52 55 1234 5678" → { country: 'MX', number: '55 1234 5678' }
+export function splitPhone(v: string | null | undefined): { country: string; number: string } {
+  const s = (v ?? '').trim();
+  if (!s.startsWith('+')) return { country: 'MX', number: s };
+  const hit = [...PHONE_COUNTRIES].sort((a, b) => b[2].length - a[2].length).find(([, , code]) => s.replace(/\s/g, '').startsWith(code));
+  return hit ? { country: hit[0] === 'DO' || hit[0] === 'PR' || hit[0] === 'CA' ? 'US' : hit[0], number: s.slice(hit[2].length).trim() } : { country: 'MX', number: s };
+}
+export const joinPhone = (country: string, number: string) => {
+  const n = number.replace(/[^\d ]/g, '').trim();
+  const code = PHONE_COUNTRIES.find(([c]) => c === country)?.[2] ?? '+52';
+  return n ? `${code} ${n}` : '';
+};

@@ -452,3 +452,6 @@ input[type="url"] { width: 100%; height: var(--h); background: var(--field); bor
 .credit-in { display: block; }
 .code-step { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 14px; border-radius: var(--r-md); background: var(--sunk); }
 .code-in { font-family: var(--font-mono) !important; font-size: 1.3rem !important; letter-spacing: .3em; max-width: 200px; height: 48px !important; text-align: center; }
+.req { color: var(--crit); font-weight: 700; }
+.phone { display: grid; grid-template-columns: 116px minmax(0, 1fr); gap: 8px; }
+label.f .nat-other { margin-top: 6px; }

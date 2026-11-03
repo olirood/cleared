@@ -7,6 +7,7 @@ import { missing, type Person } from '@/lib/people';
 import { fmtDate } from '@/lib/tracks';
 import { downloadBlob, fileSafe, letterPdf, rowFrom, type LetterModel } from '@/lib/letter';
 import type { Member } from '@/lib/session';
+import { needsApproval, repLabel, type Rep } from '@/lib/reps';
 import Panel, { Toast } from '../../components/Panel';
 import Letter from '../../components/Letter';
 import { ProfilePanel } from '../../directorio/Directory';
@@ -18,7 +19,7 @@ type Props = {
   work: Work; workspaces: { id: string; name: string; letter_template: string }[]; memberships: Member[];
   agreements: Agreement[]; current: Agreement | null; participants: Participant[]; approvals: Approval[]; signatures: Signature[];
   changes: { id: string; participant_id: string | null; note: string; created_at: string }[]; currentSig: string;
-  log: Log[]; tracks: { id: string; title: string }[]; people: Person[];
+  log: Log[]; tracks: { id: string; title: string }[]; people: Person[]; reps: Rep[];
 };
 
 const ACTIONS: Record<string, string> = {
@@ -28,7 +29,7 @@ const ACTIONS: Record<string, string> = {
 };
 
 export default function SplitEditor(props: Props) {
-  const { work, workspaces, memberships, agreements, current, participants, approvals, signatures, changes, currentSig, log, tracks, people } = props;
+  const { work, workspaces, memberships, agreements, current, participants, approvals, signatures, changes, currentSig, log, tracks, people, reps: repList } = props;
   const router = useRouter();
   const [toast, setToast] = useState('');
   const [busy, start] = useTransition();
@@ -56,7 +57,8 @@ export default function SplitEditor(props: Props) {
   });
 
   // espacios que representan a alguien del split (sin contar al dueño)
-  const reps = [...new Set(participants.map((p) => person(p.person_id)?.represented_by).filter((w): w is string => !!w && w !== work.workspace_id))];
+  const reps = [...new Set(participants.map((p) => person(p.person_id)?.represented_by).filter((w): w is string => !!w && needsApproval(repList, w, work.workspace_id)))];
+  const repName = (ws: string | null) => repLabel(repList, ws, wsName(ws));
   const apState = (ws: string) => {
     const a = approvals.find((x) => x.workspace_id === ws);
     if (!a) return { state: 'pending' as const, a };
@@ -69,7 +71,7 @@ export default function SplitEditor(props: Props) {
     if (!participants.length) problems.push('Agrega a las personas que escribieron la canción.');
     else if (sum !== 10000) problems.push(sum > 10000 ? `Sobran ${fmtPct(sum - 10000)} %.` : `Faltan ${fmtPct(10000 - sum)} %.`);
     participants.forEach((p) => { const pe = person(p.person_id); const m = pe ? missing(pe) : ['perfil']; if (pe && !pe.email) m.push('correo'); if (m.length) problems.push(`A ${pe?.legal_name ?? 'un participante'} le falta ${m.join(', ')}.`); });
-    reps.forEach((ws) => { if (apState(ws).state !== 'ok') problems.push(`Falta que ${wsName(ws)} apruebe.`); });
+    reps.forEach((ws) => { if (apState(ws).state !== 'ok') problems.push(`Falta que ${repName(ws)} apruebe.`); });
   }
 
   const sigOf = (pid: string) => signatures.find((s) => s.participant_id === pid);
@@ -164,7 +166,7 @@ export default function SplitEditor(props: Props) {
                 const nameShown = snap?.legal_name ?? pe?.legal_name ?? 'Perfil no visible';
                 const facts = [snap?.pro ?? pe?.pro, (snap?.ipi ?? pe?.ipi) && `IPI ${snap?.ipi ?? pe?.ipi}`, snap?.publisher ?? pe?.publishers?.name ?? 'Sin editora'].filter(Boolean).join(' · ');
                 const miss = draft && pe ? [...missing(pe), ...(pe.email ? [] : ['correo'])] : [];
-                const rep = pe?.represented_by && pe.represented_by !== work.workspace_id ? pe.represented_by : null;
+                const rep = pe?.represented_by && needsApproval(repList, pe.represented_by, work.workspace_id) ? pe.represented_by : null;
                 const canEditRow = draft && isOwner;
                 const canFix = pe && (writer(pe.owner_workspace_id) || writer(pe.represented_by));
                 return (
@@ -172,7 +174,7 @@ export default function SplitEditor(props: Props) {
                     <div className="pwho">
                       <strong>{nameShown}</strong>{(snap?.credit_name ?? pe?.credit_name) && <span className="muted small"> ({snap?.credit_name ?? pe?.credit_name})</span>}
                       <div className="meta mono">{facts}</div>
-                      {rep && <span className="pill info" style={{ marginTop: 6 }}>Lo representa {wsName(rep)}</span>}
+                      {rep && <span className="pill info" style={{ marginTop: 6 }}>Lo representa {repName(rep)}</span>}
                       {canEditRow ? (
                         <input className="credit-in" defaultValue={p.credits ?? ''} key={`c-${p.id}-${p.credits}`} placeholder="Créditos en la carta, ej. Writer, Producer" aria-label={`Créditos de ${nameShown}`}
                           onBlur={(e) => { if (e.target.value.trim() !== (p.credits ?? '')) run(() => updateParticipant(p.id, { credits: e.target.value }), 'Guardado'); }} />
@@ -222,7 +224,7 @@ export default function SplitEditor(props: Props) {
                 return (
                   <div key={ws} className="appr-row">
                     <div>
-                      <b>{wsName(ws)}</b> <span className="muted small">representa a {who}</span>
+                      <b>{repName(ws)}</b> <span className="muted small">representa a {who}</span>
                       {state === 'changes' && a?.note && <div className="small" style={{ color: 'var(--crit)', marginTop: 2 }}>“{a.note}”</div>}
                       {state === 'pending' && a?.status === 'changes_requested' && a.note && <div className="small muted" style={{ marginTop: 2 }}>Pidió: “{a.note}”. El split ya cambió; falta que apruebe.</div>}
                     </div>
@@ -345,6 +347,7 @@ export default function SplitEditor(props: Props) {
           workspaces={workspaces.map((w) => ({ id: w.id, name: w.name, slug: '' }))}
           memberships={memberships}
           preset={['songwriter']}
+          reps={repList}
           onClose={() => setPanel(null)}
           onOpen={(p) => setPanel({ profile: p })}
           onDone={(msg, id) => {
