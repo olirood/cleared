@@ -3,7 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 import { supabaseServer } from '@/lib/supabase/server';
 import { ROLES, canonical, equalShares, type Snapshot } from '@/lib/splits';
-import { mailConfigured } from '@/lib/mail';
+import { mailConfigured, mailError } from '@/lib/mail';
 import { artistLine } from '@/lib/tracks';
 import { buildFinalPdf, sendFinalDocument, type FinalDoc } from '@/lib/finalMail';
 
@@ -207,7 +207,7 @@ async function issue(sb: SB, participantId: string, base: string) {
   const token = newToken();
   const { error } = await sb.rpc('issue_signature_link', { participant: participantId, token_hash: await sha256Hex(token) });
   if (error) throw error;
-  return `${base}/f/${token}`;
+  return `${base}/firmar/${token}`;
 }
 
 export async function sendSplit(agreementId: string): Promise<Result> {
@@ -292,7 +292,7 @@ export async function resendFinal(agreementId: string): Promise<Result> {
   if (!mailConfigured()) return { error: 'El correo de Cleared no está configurado.' };
   const { data, error } = await sb.rpc('completed_document_for', { agreement: agreementId, server_key: process.env.CLEARED_SERVER_KEY });
   if (error || !data) return { error: 'No se pudo armar el documento.' };
-  try { await sendFinalDocument(data); } catch (e) { const d = String((e as Error)?.message || e).slice(0, 160); console.error('[cleared] reenvío falló:', d); return { error: `No se pudo mandar el correo${d.match(/smtp (\d{3})/) ? ` (servidor de correo: ${d.match(/smtp (\d{3})/)![1]})` : ''}.` }; }
+  try { await sendFinalDocument(data); } catch (e) { const d = String((e as Error)?.message || e).slice(0, 160); console.error('[cleared] reenvío falló:', d); return { error: `No se pudo mandar el correo (${mailError(e)}).` }; }
   await log(sb, a.workspace_id, agreementId, 'final_sent');
   return {};
 }

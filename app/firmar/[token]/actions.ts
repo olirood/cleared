@@ -2,7 +2,7 @@
 import { headers } from 'next/headers';
 import { supabaseServer } from '@/lib/supabase/server';
 import { CONSENT_V, normName } from '@/lib/splits';
-import { esc, mailConfigured, mailHtml, sendMail } from '@/lib/mail';
+import { esc, mailConfigured, mailError, mailHtml, sendMail } from '@/lib/mail';
 import { sendFinalDocument } from '@/lib/finalMail';
 
 async function hash(token: string) {
@@ -52,10 +52,8 @@ export async function requestCode(token: string): Promise<{ error?: string; ok?:
 <p style="margin:16px 0 0;font-size:13px;color:#555;line-height:1.5">Vence en 10 minutos. No lo compartas con nadie: escribirlo vale como tu firma.</p>`),
     });
   } catch (e) {
-    const detail = String((e as Error)?.message || e).slice(0, 160);
-    console.error('[cleared] envío de código falló:', detail);
-    const code = detail.match(/smtp (\d{3})/)?.[1];
-    return { error: `No se pudo mandar el correo${code ? ` (servidor de correo: ${code})` : detail.includes('timeout') ? ' (sin respuesta del servidor de correo)' : ''}. Intenta de nuevo en un momento.` };
+    console.error('[cleared] envío de código falló:', String((e as Error)?.message || e).slice(0, 200));
+    return { error: `No se pudo mandar el correo (${mailError(e)}).` };
   }
   return { ok: true };
 }

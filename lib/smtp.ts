@@ -14,6 +14,7 @@ const b64 = (s: string) => Buffer.from(s, 'utf8').toString('base64');
 const wrap = (s: string) => s.replace(/.{1,76}/g, '$&\r\n');
 const word = (s: string) => (/^[\x20-\x7e]*$/.test(s) ? s : `=?UTF-8?B?${b64(s)}?=`);
 const addr = (a: { email: string; name?: string }) => {
+  a = { ...a, email: a.email.trim() };
   if (!/^[^\s@<>"]+@[^\s@<>"]+$/.test(a.email)) throw new Error('bad-address');
   if (!a.name) return `<${a.email}>`;
   const n = a.name.replace(/["\\\r\n]/g, '');
@@ -45,9 +46,10 @@ export function buildMime(m: Message, domain: string) {
   return out;
 }
 
-export async function smtpSend(io: Duplex, cfg: { user: string; pass: string; helo: string }, m: Message) {
-  const reader = io.readable.getReader();
-  const writer = io.writable.getWriter();
+// upgrade: para el puerto 587 (STARTTLS) — cambia la conexión a cifrada después del primer EHLO
+export async function smtpSend(io: Duplex, cfg: { user: string; pass: string; helo: string; upgrade?: () => Duplex }, m: Message) {
+  let reader = io.readable.getReader();
+  let writer = io.writable.getWriter();
   let buf = '';
   const reply = async (expect: number[]) => {
     const deadline = Date.now() + 20000;
@@ -61,15 +63,26 @@ export async function smtpSend(io: Duplex, cfg: { user: string; pass: string; he
         return code;
       }
       if (Date.now() > deadline) throw new Error('smtp timeout');
-      const { value, done: end } = await reader.read();
-      if (end) throw new Error('smtp closed');
-      buf += dec.decode(value, { stream: true });
+      let r: ReadableStreamReadResult<Uint8Array>;
+      try { r = await reader.read(); } catch (e) { throw new Error(`smtp connect: ${String((e as Error)?.message || e).slice(0, 120)}`); }
+      if (r.done) throw new Error('smtp closed');
+      buf += dec.decode(r.value, { stream: true });
     }
   };
-  const cmd = async (line: string, expect: number[]) => { await writer.write(enc.encode(line + '\r\n')); return reply(expect); };
+  const cmd = async (line: string, expect: number[]) => {
+    try { await writer.write(enc.encode(line + '\r\n')); } catch (e) { throw new Error(`smtp connect: ${String((e as Error)?.message || e).slice(0, 120)}`); }
+    return reply(expect);
+  };
   try {
     await reply([220]);
     await cmd(`EHLO ${cfg.helo}`, [250]);
+    if (cfg.upgrade) {
+      await cmd('STARTTLS', [220]);
+      reader.releaseLock(); writer.releaseLock();
+      io = cfg.upgrade();
+      reader = io.readable.getReader(); writer = io.writable.getWriter(); buf = '';
+      await cmd(`EHLO ${cfg.helo}`, [250]);
+    }
     await cmd(`AUTH PLAIN ${Buffer.from(`\0${cfg.user}\0${cfg.pass}`, 'utf8').toString('base64')}`, [235]);
     await cmd(`MAIL FROM:<${m.from.email}>`, [250]);
     for (const t of m.to) await cmd(`RCPT TO:<${t.email}>`, [250, 251]);
@@ -82,4 +95,16 @@ export async function smtpSend(io: Duplex, cfg: { user: string; pass: string; he
     try { reader.releaseLock(); writer.releaseLock(); } catch { /* */ }
     try { await io.close?.(); } catch { /* */ }
   }
+}
+
+// Explica en una línea por qué falló un envío (para mostrarlo en pantalla)
+export function mailError(e: unknown) {
+  const d = String((e as Error)?.message || e);
+  const code = d.match(/smtp (\d{3})/)?.[1];
+  if (code === '535' || code === '534') return 'el servidor de correo rechazó el usuario o la clave (revisa SMTP_USER y SMTP_PASS)';
+  if (code) return `servidor de correo: ${code}${/not (yet )?activ|suspend|validat|verif/i.test(d) ? ', la cuenta de correo aún no está activada' : /sender|from/i.test(d) ? ', el remitente no está aprobado' : ''}`;
+  if (d.includes('timeout')) return 'sin respuesta del servidor de correo';
+  if (d.includes('bad-address')) return 'hay un correo mal escrito';
+  if (d.includes('smtp connect') || d.includes('smtp closed')) return 'no se pudo conectar al servidor de correo (revisa SMTP_HOST y SMTP_PORT)';
+  return d.slice(0, 80);
 }

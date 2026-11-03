@@ -1,6 +1,7 @@
 // Correo saliente por SMTP (Gmail con contraseña de aplicación, o cualquier SMTP con TLS).
 // La configuración vive en secretos de Cloudflare; nunca en el repo.
 import { smtpSend, type Message } from './smtp';
+export { mailError } from './smtp';
 
 type Mail = Omit<Message, 'from'>;
 
@@ -13,15 +14,19 @@ export async function sendMail(m: Mail) {
   const g = globalThis as { __clearedSocketsModule?: string };
   const spec = g.__clearedSocketsModule ?? 'cloudflare:sockets';
   const { connect } = await import(/* webpackIgnore: true */ /* turbopackIgnore: true */ spec);
+  const port = Number(process.env.SMTP_PORT || 465);
+  const plain = process.env.SMTP_INSECURE_TEST === '1';
+  const starttls = !plain && port !== 465;          // 587 / 2525: empieza sin cifrar y sube a TLS con STARTTLS
   const socket = connect(
-    { hostname: process.env.SMTP_HOST || 'smtp.gmail.com', port: Number(process.env.SMTP_PORT || 465) },
-    { secureTransport: process.env.SMTP_INSECURE_TEST === '1' ? 'off' : 'on', allowHalfOpen: false },
+    { hostname: (process.env.SMTP_HOST || 'smtp.gmail.com').trim(), port },
+    { secureTransport: plain ? 'off' : starttls ? 'starttls' : 'on', allowHalfOpen: false },
   );
-  const user = process.env.SMTP_USER!;
+  const user = process.env.SMTP_USER!.trim();
   await smtpSend(
     { readable: socket.readable, writable: socket.writable, close: () => socket.close() },
-    { user, pass: process.env.SMTP_PASS!, helo: 'cleared.workers.dev' },
-    { ...m, from: { email: process.env.MAIL_FROM || user, name: process.env.MAIL_FROM_NAME || 'Cleared' } },
+    { user, pass: process.env.SMTP_PASS!.trim(), helo: 'cleared.workers.dev',
+      upgrade: starttls ? () => { const t = socket.startTls(); return { readable: t.readable, writable: t.writable, close: () => t.close() }; } : undefined },
+    { ...m, from: { email: (process.env.MAIL_FROM || user).trim(), name: process.env.MAIL_FROM_NAME || 'Cleared' } },
   );
 }
 
