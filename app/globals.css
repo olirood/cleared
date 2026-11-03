@@ -456,3 +456,6 @@ input[type="url"] { width: 100%; height: var(--h); background: var(--field); bor
 .phone { display: grid; grid-template-columns: 116px minmax(0, 1fr); gap: 8px; }
 label.f .nat-other { margin-top: 6px; }
 .date-pending { display: flex; align-items: center; height: var(--h); padding: 0 12px; border-radius: var(--r-sm); border: 1px dashed var(--line-strong); color: var(--muted); font-weight: 400; }
+.quick-person { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px; border-radius: var(--r-md); background: var(--sunk); }
+.quick-person input { flex: 1 1 200px; width: auto; }
+.quick-person .muted { flex-basis: 100%; }

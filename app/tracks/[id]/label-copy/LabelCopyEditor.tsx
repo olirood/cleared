@@ -3,12 +3,12 @@ import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  CODE_FORMATS, EXPLICIT, INSTRUMENTS, LANGS, PERF_TYPES, PROD_ROLES, SECTIONS, STUDIO_ROLES, SUGGESTED, VIS_ROLES,
+  EXPLICIT, INSTRUMENTS, LANGS, PERF_TYPES, PROD_ROLES, SECTIONS, STUDIO_ROLES, SUGGESTED, VIS_ROLES,
   buildDoc, fmtDuration, lcPdf, lcXlsx, type Code, type CompRow, type Credit, type LCDoc, type LCRecording,
 } from '@/lib/labelcopy';
 import { downloadBlob, fileSafe } from '@/lib/letter';
 import Panel, { Toast } from '../../../components/Panel';
-import { addCredit, removeCredit, saveCode, saveLabelCopy, updateCredit, type LCInput } from './actions';
+import { addCredit, quickPerson, removeCredit, saveLabelCopy, updateCredit, type LCInput } from './actions';
 
 type P = { id: string; legal_name: string; credit_name: string | null; kinds: string[]; instruments: string | null };
 type Props = {
@@ -71,21 +71,20 @@ export default function LabelCopyEditor(props: Props) {
         <form onSubmit={(e) => { e.preventDefault(); run(() => saveLabelCopy(r.id, f), 'Guardado', () => setDirty(false)); }}>
           <fieldset className="plain" disabled={!canWrite || busy}>
             <div className="grid3">
-              {field('label_name', 'Sello')}
-              {field('distributor', 'Distribuidora')}
-              {field('upc', 'UPC', '12 o 13 dígitos')}
+              {field('label_name', 'Sello', '', '', 'ej. Fonovisa, o Independiente')}
+              {field('distributor', 'Distribuidora', '', '', 'ej. Universal Music, ONErpm')}
+              {field('upc', 'UPC', 'código del lanzamiento, opcional')}
               {field('genre', 'Género')}
               <label className="f"><span>Contenido</span>
                 <select value={f.explicit} onChange={(e) => set('explicit', e.target.value)}>{Object.entries(EXPLICIT).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
               <label className="f"><span>Idioma</span>
                 <select value={f.language} onChange={(e) => set('language', e.target.value)}>{LANGS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
               {field('duration', 'Duración', 'min:seg', '', '3:24')}
-              {field('iswc', 'ISWC', r.work_id ? 'de la obra' : 'crea el split primero', '', 'T-123.456.789-0')}
-              {field('delivery_contact', 'Contacto de entrega', 'correo o teléfono')}
+              {field('iswc', 'ISWC', r.work_id ? 'código de la canción, opcional' : 'crea el split primero', '', 'T-123.456.789-0')}
             </div>
             <div className="grid2" style={{ marginTop: 12 }}>
-              <div className="pline">{field('p_year', '℗ Año')}{field('p_owner', 'Titular del máster', '', '', 'ej. Kevin Cuadras')}</div>
-              <div className="pline">{field('c_year', '© Año')}{field('c_owner', 'Titular del arte', '', '', 'ej. Kevin Cuadras')}</div>
+              <div className="pline">{field('p_year', '℗ Año')}{field('p_owner', 'Dueño de la grabación', 'línea ℗', '', 'ej. Kevin Cuadras')}</div>
+              <div className="pline">{field('c_year', '© Año')}{field('c_owner', 'Dueño del lanzamiento', 'línea ©, si es otro', '', f.p_owner || 'igual que ℗')}</div>
             </div>
           </fieldset>
           {canWrite && <div className="row" style={{ justifyContent: 'flex-end', marginTop: 14 }}><button className="btn primary" disabled={busy || !dirty}>Guardar</button></div>}
@@ -106,16 +105,6 @@ export default function LabelCopyEditor(props: Props) {
       <Credits title="Intérpretes" category="performer" roles={INSTRUMENTS.map((i) => [i, i] as const)} {...{ r, credits, people, canWrite, busy, run }} />
       <Credits title="Arte y video" category="visual" roles={VIS_ROLES} {...{ r, credits, people, canWrite, busy, run }} />
 
-      <section className="card glass">
-        <header><h2>Códigos por formato</h2><span className="muted small">El audio estéreo usa el ISRC y UPC de arriba. Hi-Res comparte el mismo ISRC.</span></header>
-        <div className="codes">
-          {Object.entries(CODE_FORMATS).map(([k, label]) => {
-            const c = codes.find((x) => x.format === k);
-            return <CodeRow key={k + (c?.isrc ?? '') + (c?.upc ?? '')} label={label} code={c} disabled={!canWrite || busy}
-              onSave={(isrc, upc) => run(() => saveCode(r.id, k, isrc, upc), 'Guardado')} />;
-          })}
-        </div>
-      </section>
 
       {preview && (
         <Panel title="Label copy" onClose={() => setPreview(false)} wide>
@@ -131,11 +120,13 @@ export default function LabelCopyEditor(props: Props) {
 function Credits({ title, category, roles, r, credits, people, canWrite, busy, run }: {
   title: string; category: 'production' | 'performer' | 'visual'; roles: readonly (readonly [string, string])[];
   r: LCRecording; credits: Credit[]; people: P[]; canWrite: boolean; busy: boolean;
-  run: (fn: () => Promise<{ error?: string }>, ok: string) => void;
+  run: (fn: () => Promise<{ error?: string }>, ok: string, after?: () => void) => void;
 }) {
   const list = credits.filter((c) => c.category === category);
   const sugg = SUGGESTED[category];
-  const sorted = [...people].sort((a, b) => Number(b.kinds.some((k) => sugg.includes(k))) - Number(a.kinds.some((k) => sugg.includes(k))) || a.legal_name.localeCompare(b.legal_name));
+  // solo quien tiene ese rol en el directorio (más quien ya esté elegido)
+  const forRole = (sel: string | null) => people.filter((p) => p.kinds.some((k) => sugg.includes(k)) || p.id === sel).sort((a, b) => a.legal_name.localeCompare(b.legal_name));
+  const [newFor, setNewFor] = useState<{ id: string; role: string } | null>(null);
   return (
     <section className="card glass">
       <header><h2>{title}</h2>{canWrite && <button className="btn small" disabled={busy} onClick={() => run(() => addCredit(r.id, category), 'Agregado')}>Agregar</button>}</header>
@@ -150,15 +141,17 @@ function Credits({ title, category, roles, r, credits, people, canWrite, busy, r
                   {roles.map(([k, v]) => <option key={k} value={k}>{category === 'performer' ? v : `${v} · ${k}`}</option>)}
                   <option value="__other">{known ? 'Otro…' : c.role}</option>
                 </select>
-                <select value={c.person_id ?? (c.display_name ? '__free' : '')} aria-label="Persona"
+                <select value={newFor?.id === c.id ? '__new' : c.person_id ?? (c.display_name ? '__free' : '')} aria-label="Persona"
                   onChange={(e) => {
                     const v = e.target.value;
-                    if (v === '__free') { const n = prompt('Nombre como aparece en créditos'); if (n?.trim()) run(() => updateCredit(c.id, r.id, { display_name: n }), 'Guardado'); return; }
-                    if (v) run(() => updateCredit(c.id, r.id, { person_id: v }), 'Guardado');
+                    if (v === '__new') { setNewFor({ id: c.id, role: c.role }); return; }
+                    setNewFor(null);
+                    if (v && v !== '__free') run(() => updateCredit(c.id, r.id, { person_id: v }), 'Guardado');
                   }}>
                   <option value="">Elegir del directorio…</option>
-                  {sorted.map((p) => <option key={p.id} value={p.id}>{p.credit_name ? `${p.credit_name} (${p.legal_name})` : p.legal_name}</option>)}
-                  <option value="__free">{c.display_name ? `${c.display_name} (sin perfil)` : 'Escribir nombre sin perfil…'}</option>
+                  {forRole(c.person_id).map((p) => <option key={p.id} value={p.id}>{p.credit_name ? `${p.credit_name} (${p.legal_name})` : p.legal_name}</option>)}
+                  {c.display_name && <option value="__free">{c.display_name} (sin perfil)</option>}
+                  <option value="__new">＋ Nuevo perfil…</option>
                 </select>
                 {category === 'performer' ? (
                   <select value={c.performer_type ?? 'session'} aria-label="Tipo" onChange={(e) => run(() => updateCredit(c.id, r.id, { performer_type: e.target.value }), 'Guardado')}>
@@ -170,6 +163,10 @@ function Credits({ title, category, roles, r, credits, people, canWrite, busy, r
                 )}
                 {!known && <input defaultValue={c.role} aria-label="Rol personalizado" onBlur={(e) => e.target.value.trim() && e.target.value.trim() !== c.role && run(() => updateCredit(c.id, r.id, { role: e.target.value }), 'Guardado')} />}
                 <button type="button" className="icon-btn" aria-label="Quitar crédito" onClick={() => run(() => removeCredit(c.id, r.id), 'Quitado')}>×</button>
+                {newFor?.id === c.id && (
+                  <QuickPerson busy={busy} onCancel={() => setNewFor(null)}
+                    onSave={(name, email) => run(() => quickPerson(r.id, c.id, category, c.role, name, email), 'Perfil creado', () => setNewFor(null))} />
+                )}
               </fieldset>
             );
           })}
@@ -179,16 +176,16 @@ function Credits({ title, category, roles, r, credits, people, canWrite, busy, r
   );
 }
 
-function CodeRow({ label, code, disabled, onSave }: { label: string; code?: Code; disabled: boolean; onSave: (isrc: string, upc: string) => void }) {
-  const [isrc, setIsrc] = useState(code?.isrc ?? '');
-  const [upc, setUpc] = useState(code?.upc ?? '');
-  const changed = isrc !== (code?.isrc ?? '') || upc !== (code?.upc ?? '');
+function QuickPerson({ busy, onSave, onCancel }: { busy: boolean; onSave: (name: string, email: string) => void; onCancel: () => void }) {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   return (
-    <div className="code-row">
-      <span>{label}</span>
-      <input value={isrc} onChange={(e) => setIsrc(e.target.value)} placeholder="ISRC" aria-label={`ISRC de ${label}`} disabled={disabled} />
-      <input value={upc} onChange={(e) => setUpc(e.target.value)} placeholder="UPC" aria-label={`UPC de ${label}`} disabled={disabled} />
-      <button className="btn small" disabled={disabled || !changed} onClick={() => onSave(isrc, upc)}>Guardar</button>
+    <div className="quick-person">
+      <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre legal" aria-label="Nombre legal" />
+      <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Correo (opcional)" aria-label="Correo" />
+      <button type="button" className="btn small primary" disabled={busy || name.trim().length < 3} onClick={() => onSave(name, email)}>Guardar</button>
+      <button type="button" className="btn small" onClick={onCancel}>Cancelar</button>
+      <span className="muted small">Se agrega al directorio; los demás datos los completas ahí.</span>
     </div>
   );
 }

@@ -49,7 +49,6 @@ export type CompRow = { name: string; role: string; share_bp: number; publisher:
 export function lcMissing(r: LCRecording, credits: Credit[], comp: CompRow[]): string[] {
   const has = (role: string) => credits.some((c) => c.role === role && (c.person_id || c.display_name));
   const m: string[] = [];
-  if (!r.isrc) m.push('ISRC');
   if (!(r.p_year && r.p_owner)) m.push('línea ℗');
   if (!(r.c_year && r.c_owner)) m.push('línea ©');
   if (!comp.length) m.push('composición');
@@ -100,7 +99,7 @@ export function buildDoc(o: {
       ['Máster', 'WAV estéreo, 24 bits, 48 kHz o más', o.hasMaster ? 'Enlace en Cleared' : 'Falta'],
       ['Portada', 'JPG o PNG en RGB, 3000 × 3000 px', o.hasCover ? 'En Cleared' : 'Falta'],
     ],
-    preparedBy: o.preparedBy + (r.delivery_contact ? ` · ${r.delivery_contact}` : ''),
+    preparedBy: o.preparedBy,
     generated: new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' }),
   };
 }
@@ -110,7 +109,6 @@ export const SECTIONS: { key: keyof LCDoc; title: string; heads: string[] }[] = 
   { key: 'production', title: 'Producción e ingeniería', heads: ['Rol', 'Nombre en créditos', 'Nombre legal', 'Estudio / nota'] },
   { key: 'performers', title: 'Intérpretes', heads: ['Instrumento o voz', 'Nombre en créditos', 'Nombre legal', 'Tipo'] },
   { key: 'visual', title: 'Arte y video', heads: ['Rol', 'Nombre en créditos', 'Nombre legal'] },
-  { key: 'codes', title: 'Códigos por formato', heads: ['Formato', 'ISRC', 'UPC'] },
   { key: 'materials', title: 'Materiales', heads: ['Material', 'Especificación', 'Estado'] },
 ];
 

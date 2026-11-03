@@ -30,9 +30,12 @@ export async function saveLabelCopy(id: string, f: LCInput): Promise<Result> {
   const iswc = f.iswc.replace(/[\s.-]/g, '').toUpperCase();
   if (iswc && !/^T\d{10}$/.test(iswc)) return { error: 'El ISWC va como T seguido de 10 dígitos, ej. T-123.456.789-0' };
   const sb = await supabaseServer();
+  // el © casi siempre es del mismo titular que el ℗: si no se escribe, se copia
+  const cOwner = orNull(f.c_owner) ?? orNull(f.p_owner);
+  const cYear = cy ?? py;
   const { data, error } = await sb.from('recordings').update({
     label_name: orNull(f.label_name), distributor: orNull(f.distributor), upc: upc || null, genre: orNull(f.genre), explicit: f.explicit,
-    language: orNull(f.language), duration_s: dur, p_year: py, p_owner: orNull(f.p_owner), c_year: cy, c_owner: orNull(f.c_owner), delivery_contact: orNull(f.delivery_contact),
+    language: orNull(f.language), duration_s: dur, p_year: py, p_owner: orNull(f.p_owner), c_year: cYear, c_owner: cOwner,
   }).eq('id', id).select('work_id');
   if (error) return { error: bad(error) };
   if (!data?.length) return { error: 'No tienes permiso para cambiar este track.' };
@@ -91,5 +94,33 @@ export async function saveCode(recordingId: string, format: string, isrc: string
     : await sb.from('recording_codes').upsert({ recording_id: recordingId, format, isrc: i || null, upc: u || null });
   if (error) return { error: bad(error) };
   refresh(recordingId);
+  return {};
+}
+
+// Alta rápida desde el label copy: nombre y correo; lo demás se completa en el directorio
+const ENGINEER_ROLES = ['Recording Engineer', 'Mixing Engineer', 'Mastering Engineer', 'Assistant Engineer'];
+export async function quickPerson(recordingId: string, creditId: string, category: string, role: string, name: string, email: string): Promise<Result> {
+  const legal = t(name), mail = t(email);
+  if (legal.length < 3) return { error: 'Escribe el nombre legal.' };
+  if (mail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) return { error: 'Revisa el correo.' };
+  const kind = category === 'visual' ? 'visual' : category === 'performer' ? (role === 'Voz principal' ? 'artist' : 'musician') : ENGINEER_ROLES.includes(role) ? 'engineer' : 'producer';
+  const sb = await supabaseServer();
+  const { data: rec } = await sb.from('recordings').select('workspace_id').eq('id', recordingId).maybeSingle();
+  if (!rec) return { error: 'No se encontró el track.' };
+  // si ya existe alguien con ese nombre, se usa ese perfil
+  const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const { data: same } = await sb.from('people').select('id, legal_name, kinds').ilike('legal_name', legal.replace(/[\\%_]/g, (c) => '\\' + c));
+  const hit = (same ?? []).find((p) => norm(p.legal_name) === norm(legal));
+  let personId = hit?.id;
+  if (hit && !hit.kinds.includes(kind)) await sb.from('people').update({ kinds: [...hit.kinds, kind] }).eq('id', hit.id);
+  if (!personId) {
+    const { data, error } = await sb.from('people').insert({ owner_workspace_id: rec.workspace_id, legal_name: legal, email: mail || null, kinds: [kind] }).select('id').single();
+    if (error) return { error: bad(error) };
+    personId = data.id;
+  }
+  const { error } = await sb.from('credits').update({ person_id: personId, display_name: null }).eq('id', creditId);
+  if (error) return { error: bad(error) };
+  refresh(recordingId);
+  revalidatePath('/directorio');
   return {};
 }
